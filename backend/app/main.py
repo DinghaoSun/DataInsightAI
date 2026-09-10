@@ -57,13 +57,19 @@ async def analyze_data(file: UploadFile = File(...)):
 
         # 6. 执行数据分析
         result = analyze_dataframe(df)
+
+        # 7. 生成规则型洞察
         insights = generate_insights(result)
 
-        # 7. 返回分析结果
+        # 8. 生成 AI 洞察
+        ai_insight = generate_ai_insight(result)
+
+        # 9. 返回完整分析结果
         return {
             "filename": file.filename,
             "analysis": result,
             "insights": insights,
+            "ai_insight": ai_insight,
         }
 
     except UnicodeDecodeError:
