@@ -1,4 +1,5 @@
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import SessionLocal
 from app.models.dataset import Dataset
@@ -10,6 +11,14 @@ from app.services.csv_loader import read_csv_file
 
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
@@ -209,3 +218,55 @@ async def ai_insight(file: UploadFile = File(...)):
             status_code=500,
             detail=f"AI 洞察生成过程中发生错误：{str(e)}",
         )
+
+@app.get("/api/data/analysis/count")
+def get_analysis_count():
+    db = SessionLocal()
+
+    try:
+        count = db.query(DatasetAnalysis).count()
+
+        return {
+            "count": count
+        }
+
+    finally:
+        db.close()
+
+@app.get("/api/data/quality")
+def get_data_quality():
+    db = SessionLocal()
+
+    try:
+        analysis_records = (
+            db.query(DatasetAnalysis)
+            .order_by(DatasetAnalysis.created_at.desc())
+            .all()
+        )
+
+        if not analysis_records:
+            return {
+                "quality_score": 0
+            }
+
+        scores = []
+
+        for record in analysis_records:
+            quality_score = record.analysis.get("quality_score")
+
+            if quality_score is not None:
+                scores.append(float(quality_score))
+
+        if not scores:
+            return {
+                "quality_score": 0
+            }
+
+        average_score = sum(scores) / len(scores)
+
+        return {
+            "quality_score": round(average_score, 1)
+        }
+
+    finally:
+        db.close()
