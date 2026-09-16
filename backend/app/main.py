@@ -56,6 +56,34 @@ def get_datasets():
     finally:
         db.close()
 
+@app.get("/api/data/datasets/{dataset_id}")
+def get_dataset(dataset_id: int):
+    db = SessionLocal()
+
+    try:
+        dataset = (
+            db.query(Dataset)
+            .filter(Dataset.id == dataset_id)
+            .first()
+        )
+
+        if dataset is None:
+            raise HTTPException(
+                status_code=404,
+                detail="数据集不存在"
+            )
+
+        return {
+            "id": dataset.id,
+            "filename": dataset.filename,
+            "row_count": dataset.row_count,
+            "column_count": dataset.column_count,
+            "uploaded_at": dataset.uploaded_at,
+        }
+
+    finally:
+        db.close()
+
 
 @app.get("/api/data/datasets/{dataset_id}")
 def get_dataset(dataset_id: int):
