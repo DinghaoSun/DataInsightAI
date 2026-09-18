@@ -1,16 +1,13 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import api, { getAnalysisCount } from '../services/api'
 
 const router = useRouter()
 
 const goToDatasets = () => {
   router.push('/datasets')
 }
-import api from '../services/api'
-import { getAnalysisCount } from '../services/api'
-
-const activeMenu = ref('dashboard')
 
 const recentDatasets = ref([])
 const analysisCount = ref(0)
@@ -26,9 +23,9 @@ const stats = computed(() => [
   {
     title: '数据记录',
     value: recentDatasets.value.reduce(
-  (total, dataset) => total + dataset.row_count,
-  0
-),
+      (total, dataset) => total + dataset.row_count,
+      0
+    ),
     description: '累计分析数据',
     icon: '⌁',
   },
@@ -40,13 +37,11 @@ const stats = computed(() => [
   },
   {
     title: '数据质量',
-  value: `${qualityScore.value}%`,
+    value: `${qualityScore.value}%`,
     description: '整体数据质量',
     icon: '✓',
   },
 ])
-
-
 
 onMounted(async () => {
   try {
@@ -63,440 +58,297 @@ onMounted(async () => {
     console.error('获取数据失败：', error)
   }
 })
-
 </script>
 
 <template>
-  <div class="app-shell">
-    <!-- 侧边栏 -->
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-icon">D</div>
+  <div class="dashboard-page">
+    <!-- 顶部栏 -->
+    <header class="topbar">
+      <div>
+        <div class="breadcrumb">工作台 / 数据总览</div>
+
+        <h1>数据分析工作台</h1>
+
+        <p>欢迎回来，开始探索你的数据吧。</p>
+      </div>
+
+      <div class="topbar-actions">
+        <button class="icon-button">⌕</button>
+
+        <button class="icon-button">♢</button>
+
+        <div class="user-profile">
+          <div class="avatar">D</div>
+
+          <div class="user-info">
+            <div class="user-name">Data User</div>
+            <div class="user-role">分析员</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- 核心统计卡片 -->
+    <section class="stats-grid">
+      <div
+        v-for="stat in stats"
+        :key="stat.title"
+        class="stat-card"
+      >
+        <div class="stat-top">
+          <div class="stat-icon">
+            {{ stat.icon }}
+          </div>
+
+          <span class="stat-trend">
+            +12.5%
+          </span>
+        </div>
+
+        <div class="stat-title">
+          {{ stat.title }}
+        </div>
+
+        <div class="stat-value">
+          {{ stat.value }}
+        </div>
+
+        <div class="stat-description">
+          {{ stat.description }}
+        </div>
+      </div>
+    </section>
+
+    <!-- 上传区域 -->
+    <section class="upload-card">
+      <div class="upload-content">
+        <div class="upload-icon">
+          ↑
+        </div>
+
         <div>
-          <div class="brand-name">DataInsightAI</div>
-          <div class="brand-subtitle">智能数据分析平台</div>
+          <h2>开始新的数据分析</h2>
+
+          <p>
+            上传 CSV 文件，让 DataInsightAI 帮你发现数据中的价值。
+          </p>
         </div>
       </div>
 
-      <nav class="nav-menu">
-        <div class="nav-section-title">工作台</div>
+      <button
+        class="primary-button"
+        @click="goToDatasets"
+      >
+        <span>＋</span>
+        上传数据
+      </button>
+    </section>
 
-        <button
-          class="nav-item"
-          :class="{ active: activeMenu === 'dashboard' }"
-          @click="activeMenu = 'dashboard'"
-        >
-          <span class="nav-icon">⌂</span>
-          <span>数据总览</span>
-        </button>
-
-        <router-link
-          to="/datasets"
-          class="nav-item"
-          :class="{ active: $route.path === '/datasets' }"
->
-        <span class="nav-icon">□</span>
-        <span>数据集</span>
-      </router-link>
-
-        <button
-          class="nav-item"
-          :class="{ active: activeMenu === 'history' }"
-          @click="activeMenu = 'history'"
-        >
-          <span class="nav-icon">◷</span>
-          <span>分析历史</span>
-        </button>
-
-        <div class="nav-section-title second">系统</div>
-
-        <button class="nav-item">
-          <span class="nav-icon">⚙</span>
-          <span>设置</span>
-        </button>
-      </nav>
-
-      <div class="sidebar-bottom">
-        <div class="status-dot"></div>
-        <div>
-          <div class="system-status">系统运行正常</div>
-          <div class="system-version">DataInsightAI v1.0</div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- 主内容区域 -->
-    <main class="main-content">
-      <!-- 顶部栏 -->
-      <header class="topbar">
-        <div>
-          <div class="breadcrumb">工作台 / 数据总览</div>
-          <h1>数据分析工作台</h1>
-          <p>欢迎回来，开始探索你的数据吧。</p>
-        </div>
-
-        <div class="topbar-actions">
-          <button class="icon-button">⌕</button>
-          <button class="icon-button">♢</button>
-
-          <div class="user-profile">
-            <div class="avatar">D</div>
-            <div class="user-info">
-              <div class="user-name">Data User</div>
-              <div class="user-role">分析员</div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <!-- 核心统计卡片 -->
-      <section class="stats-grid">
-        <div v-for="stat in stats" :key="stat.title" class="stat-card">
-          <div class="stat-top">
-            <div class="stat-icon">{{ stat.icon }}</div>
-            <span class="stat-trend">+12.5%</span>
-          </div>
-
-          <div class="stat-title">{{ stat.title }}</div>
-          <div class="stat-value">{{ stat.value }}</div>
-          <div class="stat-description">{{ stat.description }}</div>
-        </div>
-      </section>
-
-      <!-- 上传区域 -->
-      <section class="upload-card">
-        <div class="upload-content">
-          <div class="upload-icon">↑</div>
-
-          <div>
-            <h2>开始新的数据分析</h2>
-            <p>上传 CSV 文件，让 DataInsightAI 帮你发现数据中的价值。</p>
-          </div>
-        </div>
-
-        <button class="primary-button">
-          <span>＋</span>
-          上传数据
-        </button>
-      </section>
-
-      <!-- 中间区域 -->
-      <section class="dashboard-grid">
-        <!-- 数据概览 -->
-        <div class="panel chart-panel">
-          <div class="panel-header">
-            <div>
-              <h2>数据分析趋势</h2>
-              <p>最近 7 天的数据分析情况</p>
-            </div>
-
-            <button class="period-button">最近 7 天⌄</button>
-          </div>
-
-          <div class="chart">
-            <div class="chart-y">
-              <span>40</span>
-              <span>30</span>
-              <span>20</span>
-              <span>10</span>
-              <span>0</span>
-            </div>
-
-            <div class="chart-area">
-              <div class="grid-line line-1"></div>
-              <div class="grid-line line-2"></div>
-              <div class="grid-line line-3"></div>
-              <div class="grid-line line-4"></div>
-
-              <div class="fake-chart">
-                <div class="bar" style="height: 42%"></div>
-                <div class="bar" style="height: 55%"></div>
-                <div class="bar" style="height: 48%"></div>
-                <div class="bar" style="height: 70%"></div>
-                <div class="bar" style="height: 62%"></div>
-                <div class="bar" style="height: 82%"></div>
-                <div class="bar active-bar" style="height: 92%"></div>
-              </div>
-
-              <div class="chart-x">
-                <span>09/09</span>
-                <span>09/10</span>
-                <span>09/11</span>
-                <span>09/12</span>
-                <span>09/13</span>
-                <span>09/14</span>
-                <span>09/15</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- AI 洞察 -->
-        <div class="panel ai-panel">
-          <div class="panel-header">
-            <div>
-              <h2>AI 智能洞察</h2>
-              <p>最近一次分析结果</p>
-            </div>
-
-            <div class="ai-badge">AI</div>
-          </div>
-
-          <div class="ai-content">
-            <div class="ai-title">
-              <span class="ai-star">✦</span>
-              数据分析完成
-            </div>
-
-            <p>
-              当前数据集整体质量较好，检测到少量缺失值。
-              建议重点关注销售金额字段，并进一步分析异常数据。
-            </p>
-
-            <div class="insight-list">
-              <div class="insight-item">
-                <span class="insight-number">01</span>
-                <span>数据完整性达到 94%</span>
-              </div>
-
-              <div class="insight-item">
-                <span class="insight-number">02</span>
-                <span>发现 23 条潜在异常记录</span>
-              </div>
-
-              <div class="insight-item">
-                <span class="insight-number">03</span>
-                <span>销售金额呈现增长趋势</span>
-              </div>
-            </div>
-          </div>
-
-          <button class="text-button">
-            查看完整 AI 分析 →
-          </button>
-        </div>
-      </section>
-
-      <!-- 最近数据集 -->
-      <section class="panel datasets-panel">
+    <!-- 中间区域 -->
+    <section class="dashboard-grid">
+      <!-- 数据分析趋势 -->
+      <div class="panel chart-panel">
         <div class="panel-header">
           <div>
-            <h2>最近数据集</h2>
-            <p>你最近分析过的数据文件</p>
+            <h2>数据分析趋势</h2>
+
+            <p>最近 7 天的数据分析情况</p>
           </div>
 
-          <button class="text-button">查看全部 →</button>
+          <button class="period-button">
+            最近 7 天⌄
+          </button>
         </div>
 
-        <div class="dataset-table">
-          <div class="table-header">
-            <span>数据集名称</span>
-            <span>数据量</span>
-            <span>字段数</span>
-            <span>状态</span>
+        <div class="chart">
+          <div class="chart-y">
+            <span>40</span>
+            <span>30</span>
+            <span>20</span>
+            <span>10</span>
+            <span>0</span>
           </div>
 
-          <div
-  v-for="dataset in recentDatasets"
-  :key="dataset.id"
-  class="table-row"
->
-  <span class="dataset-name">
-    <span class="file-icon">CSV</span>
-    <span>{{ dataset.filename }}</span>
-  </span>
+          <div class="chart-area">
+            <div class="grid-line line-1"></div>
+            <div class="grid-line line-2"></div>
+            <div class="grid-line line-3"></div>
+            <div class="grid-line line-4"></div>
 
-  <span>{{ dataset.row_count }}</span>
+            <div class="fake-chart">
+              <div
+                class="bar"
+                style="height: 42%"
+              ></div>
 
-  <span>{{ dataset.column_count }}</span>
+              <div
+                class="bar"
+                style="height: 55%"
+              ></div>
 
-  <span class="status-tag">
-    <span class="small-dot"></span>
-    <span>分析完成</span>
-  </span>
-</div>
+              <div
+                class="bar"
+                style="height: 48%"
+              ></div>
+
+              <div
+                class="bar"
+                style="height: 70%"
+              ></div>
+
+              <div
+                class="bar"
+                style="height: 62%"
+              ></div>
+
+              <div
+                class="bar"
+                style="height: 82%"
+              ></div>
+
+              <div
+                class="bar active-bar"
+                style="height: 92%"
+              ></div>
+            </div>
+
+            <div class="chart-x">
+              <span>09/09</span>
+              <span>09/10</span>
+              <span>09/11</span>
+              <span>09/12</span>
+              <span>09/13</span>
+              <span>09/14</span>
+              <span>09/15</span>
+            </div>
+          </div>
         </div>
-      </section>
+      </div>
 
-      <footer class="footer">
-        DataInsightAI · Intelligent Data Analysis Platform
-      </footer>
-    </main>
+      <!-- AI 洞察 -->
+      <div class="panel ai-panel">
+        <div class="panel-header">
+          <div>
+            <h2>AI 智能洞察</h2>
+
+            <p>最近一次分析结果</p>
+          </div>
+
+          <div class="ai-badge">
+            AI
+          </div>
+        </div>
+
+        <div class="ai-content">
+          <div class="ai-title">
+            <span class="ai-star">✦</span>
+
+            数据分析完成
+          </div>
+
+          <p>
+            当前数据集整体质量较好，检测到少量缺失值。
+            建议重点关注销售金额字段，并进一步分析异常数据。
+          </p>
+
+          <div class="insight-list">
+            <div class="insight-item">
+              <span class="insight-number">01</span>
+              <span>数据完整性达到 94%</span>
+            </div>
+
+            <div class="insight-item">
+              <span class="insight-number">02</span>
+              <span>发现 23 条潜在异常记录</span>
+            </div>
+
+            <div class="insight-item">
+              <span class="insight-number">03</span>
+              <span>销售金额呈现增长趋势</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="text-button">
+          查看完整 AI 分析 →
+        </button>
+      </div>
+    </section>
+
+    <!-- 最近数据集 -->
+    <section class="panel datasets-panel">
+      <div class="panel-header">
+        <div>
+          <h2>最近数据集</h2>
+
+          <p>你最近分析过的数据文件</p>
+        </div>
+
+        <button
+          class="text-button"
+          @click="goToDatasets"
+        >
+          查看全部 →
+        </button>
+      </div>
+
+      <div class="dataset-table">
+        <div class="table-header">
+          <span>数据集名称</span>
+          <span>数据量</span>
+          <span>字段数</span>
+          <span>状态</span>
+        </div>
+
+        <div
+          v-for="dataset in recentDatasets"
+          :key="dataset.id"
+          class="table-row"
+        >
+          <span class="dataset-name">
+            <span class="file-icon">CSV</span>
+
+            <span>{{ dataset.filename }}</span>
+          </span>
+
+          <span>
+            {{ dataset.row_count }}
+          </span>
+
+          <span>
+            {{ dataset.column_count }}
+          </span>
+
+          <span class="status-tag">
+            <span class="small-dot"></span>
+
+            <span>分析完成</span>
+          </span>
+        </div>
+
+        <div
+          v-if="recentDatasets.length === 0"
+          class="empty-state"
+        >
+          暂无数据集，上传一个 CSV 文件开始分析吧。
+        </div>
+      </div>
+    </section>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+      DataInsightAI · Intelligent Data Analysis Platform
+    </footer>
   </div>
 </template>
 
 <style>
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#app {
-  margin: 0;
-  min-height: 100%;
+.dashboard-page {
   width: 100%;
-}
-
-body {
-  font-family:
-    Inter,
-    "PingFang SC",
-    "Microsoft YaHei",
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  background: #f5f7fb;
-  color: #172033;
-}
-
-button {
-  font-family: inherit;
-}
-
-.app-shell {
   min-height: 100vh;
-  display: flex;
-  background: #f5f7fb;
 }
 
-/* Sidebar */
-
-.sidebar {
-  position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 248px;
-  padding: 28px 18px;
-  background: #101827;
-  color: white;
-  display: flex;
-  flex-direction: column;
-  z-index: 10;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 10px 32px;
-}
-
-.brand-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #5b5df0, #8b5cf6);
-  font-size: 20px;
-  font-weight: 800;
-  box-shadow: 0 8px 22px rgba(91, 93, 240, 0.35);
-}
-
-.brand-name {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-}
-
-.brand-subtitle {
-  margin-top: 4px;
-  color: #8994a8;
-  font-size: 11px;
-}
-
-.nav-menu {
-  flex: 1;
-}
-
-.nav-section-title {
-  padding: 0 12px 10px;
-  color: #69758a;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.nav-section-title.second {
-  margin-top: 30px;
-}
-
-.nav-item {
-  width: 100%;
-  border: none;
-  background: transparent;
-  color: #9ba6b8;
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  padding: 13px 14px;
-  margin-bottom: 5px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 14px;
-  text-align: left;
-  transition: all 0.2s ease;
-  text-decoration: none;
-}
-
-.nav-item:hover {
-  background: #1a2537;
-  color: white;
-}
-
-.nav-item.active {
-  color: white;
-  background: linear-gradient(90deg, #292f54, #222a43);
-  box-shadow: inset 3px 0 0 #756cf6;
-}
-
-.nav-icon {
-  width: 22px;
-  text-align: center;
-  font-size: 16px;
-}
-
-.sidebar-bottom {
-  border-top: 1px solid #222c3d;
-  padding: 20px 10px 4px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.status-dot,
-.small-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #35c98b;
-  box-shadow: 0 0 8px rgba(53, 201, 139, 0.6);
-}
-
-.system-status {
-  font-size: 12px;
-  color: #d8deea;
-}
-
-.system-version {
-  margin-top: 3px;
-  font-size: 10px;
-  color: #69758a;
-}
-
-/* Main */
-
-.main-content {
-  margin-left: 248px;
-  width: calc(100% - 248px);
-  min-height: 100vh;
-  padding: 34px 42px;
-}
+/* Topbar */
 
 .topbar {
   display: flex;
@@ -513,6 +365,7 @@ button {
 
 h1 {
   margin: 0;
+  color: #172033;
   font-size: 28px;
   letter-spacing: -0.8px;
 }
@@ -538,6 +391,10 @@ h1 {
   border-radius: 10px;
   cursor: pointer;
   font-size: 17px;
+}
+
+.icon-button:hover {
+  background: #f8f7ff;
 }
 
 .user-profile {
@@ -901,6 +758,10 @@ h1 {
   text-align: left;
 }
 
+.text-button:hover {
+  color: #4f46c8;
+}
+
 /* Dataset */
 
 .datasets-panel {
@@ -939,7 +800,7 @@ h1 {
   display: flex;
   align-items: center;
   gap: 9px;
-  color: #354055 !important;
+  color: #354055;
   font-weight: 600;
 }
 
@@ -956,9 +817,26 @@ h1 {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #2caf78 !important;
+  color: #2caf78;
   font-weight: 600;
 }
+
+.small-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #35c98b;
+  box-shadow: 0 0 8px rgba(53, 201, 139, 0.6);
+}
+
+.empty-state {
+  padding: 35px 20px;
+  text-align: center;
+  color: #9ba3b1;
+  font-size: 12px;
+}
+
+/* Footer */
 
 .footer {
   padding: 24px 0 8px;
@@ -980,39 +858,6 @@ h1 {
 }
 
 @media (max-width: 800px) {
-  .sidebar {
-    width: 70px;
-    padding: 20px 10px;
-  }
-
-  .brand-name,
-  .brand-subtitle,
-  .nav-section-title,
-  .nav-item span:last-child,
-  .system-status,
-  .system-version {
-    display: none;
-  }
-
-  .brand {
-    justify-content: center;
-    padding: 0 0 30px;
-  }
-
-  .nav-item {
-    justify-content: center;
-  }
-
-  .sidebar-bottom {
-    justify-content: center;
-  }
-
-  .main-content {
-    margin-left: 70px;
-    width: calc(100% - 70px);
-    padding: 25px 20px;
-  }
-
   .topbar {
     gap: 20px;
   }
@@ -1023,6 +868,16 @@ h1 {
 
   .stats-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .table-header,
+  .table-row {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+
+  .table-header span:last-child,
+  .table-row span:last-child {
+    display: none;
   }
 }
 
@@ -1037,13 +892,7 @@ h1 {
     gap: 15px;
   }
 
-  .table-header,
-  .table-row {
-    grid-template-columns: 2fr 1fr 1fr;
-  }
-
-  .table-header span:last-child,
-  .table-row span:last-child {
+  .topbar-actions {
     display: none;
   }
 }
