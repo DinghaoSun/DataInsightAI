@@ -1,3 +1,4 @@
+```vue
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -8,6 +9,11 @@ const router = useRouter()
 const datasets = ref([])
 const loading = ref(true)
 const error = ref('')
+
+const showUploadModal = ref(false)
+const selectedFile = ref(null)
+const uploading = ref(false)
+const uploadError = ref('')
 
 const fetchDatasets = async () => {
   try {
@@ -25,7 +31,102 @@ const fetchDatasets = async () => {
 }
 
 const goToDetail = (id) => {
-  router.push(`/datasets/${id}`)
+  router.push('/datasets/' + id)
+}
+
+const openUploadModal = () => {
+  showUploadModal.value = true
+  selectedFile.value = null
+  uploadError.value = ''
+}
+
+const closeUploadModal = () => {
+  if (uploading.value) {
+    return
+  }
+
+  showUploadModal.value = false
+  selectedFile.value = null
+  uploadError.value = ''
+}
+
+const handleFileChange = (event) => {
+  const file = event.target.files[0]
+
+  if (!file) {
+    return
+  }
+
+  uploadError.value = ''
+
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    selectedFile.value = null
+    uploadError.value = '请选择 CSV 格式的文件。'
+    return
+  }
+
+  if (file.size > 20 * 1024 * 1024) {
+    selectedFile.value = null
+    uploadError.value = '文件大小不能超过 20MB。'
+    return
+  }
+
+  selectedFile.value = file
+}
+
+const uploadFile = async () => {
+  if (!selectedFile.value) {
+    uploadError.value = '请先选择一个 CSV 文件。'
+    return
+  }
+
+  try {
+    uploading.value = true
+    uploadError.value = ''
+
+    const formData = new FormData()
+    formData.append('file', selectedFile.value)
+
+    await api.post(
+      '/api/data/analyze',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    )
+
+    console.log('上传并分析成功')
+
+    showUploadModal.value = false
+
+    await fetchDatasets()
+
+    if (datasets.value.length > 0) {
+      const latestDataset = datasets.value[0]
+
+      console.log('最新数据集：', latestDataset)
+
+      const detailPath = '/datasets/' + latestDataset.id
+
+      router.push(detailPath)
+    }
+  } catch (err) {
+    console.error('上传数据失败：', err)
+
+    if (
+      err.response &&
+      err.response.data &&
+      err.response.data.detail
+    ) {
+      uploadError.value = err.response.data.detail
+    } else {
+      uploadError.value = '上传失败，请检查后端服务是否正常运行。'
+    }
+  } finally {
+    uploading.value = false
+  }
 }
 
 onMounted(fetchDatasets)
@@ -42,7 +143,10 @@ onMounted(fetchDatasets)
         <p>管理和查看你上传的所有数据集。</p>
       </div>
 
-      <button class="primary-button">
+      <button
+        class="primary-button"
+        @click="openUploadModal"
+      >
         ＋ 上传数据
       </button>
     </div>
@@ -109,6 +213,99 @@ onMounted(fetchDatasets)
         </div>
       </div>
     </div>
+
+    <!-- 上传弹窗 -->
+    <div
+      v-if="showUploadModal"
+      class="modal-overlay"
+      @click.self="closeUploadModal"
+    >
+      <div class="upload-modal">
+        <div class="modal-header">
+          <div>
+            <h2>上传数据集</h2>
+            <p>上传 CSV 文件，系统将自动进行数据分析。</p>
+          </div>
+
+          <button
+            class="close-button"
+            @click="closeUploadModal"
+            :disabled="uploading"
+          >
+            ×
+          </button>
+        </div>
+
+        <div class="upload-area">
+          <div class="upload-icon">
+            CSV
+          </div>
+
+          <h3>选择 CSV 文件</h3>
+
+          <p>
+            支持 CSV 格式，文件大小不超过 20MB
+          </p>
+
+          <label class="file-select-button">
+            选择文件
+
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              @change="handleFileChange"
+              :disabled="uploading"
+            />
+          </label>
+
+          <div
+            v-if="selectedFile"
+            class="selected-file"
+          >
+            <span>📄</span>
+
+            <div>
+              <strong>{{ selectedFile.name }}</strong>
+
+              <small>
+                {{ (selectedFile.size / 1024 / 1024).toFixed(2) }} MB
+              </small>
+            </div>
+          </div>
+
+          <div
+            v-if="uploadError"
+            class="upload-error"
+          >
+            {{ uploadError }}
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button
+            class="cancel-button"
+            @click="closeUploadModal"
+            :disabled="uploading"
+          >
+            取消
+          </button>
+
+          <button
+            class="upload-button"
+            @click="uploadFile"
+            :disabled="!selectedFile || uploading"
+          >
+            <span v-if="uploading">
+              正在分析...
+            </span>
+
+            <span v-else>
+              开始分析
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -154,6 +351,11 @@ h1 {
   font-size: 12px;
   cursor: pointer;
   box-shadow: 0 6px 15px rgba(98, 91, 234, 0.25);
+  transition: all 0.2s ease;
+}
+
+.primary-button:hover {
+  transform: translateY(-1px);
 }
 
 .dataset-card,
@@ -285,4 +487,224 @@ h1 {
   text-align: center;
   color: #a0a8b6;
 }
+
+/* 上传弹窗 */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(25, 30, 45, 0.42);
+  backdrop-filter: blur(3px);
+}
+
+.upload-modal {
+  width: 500px;
+  max-width: calc(100vw - 40px);
+
+  background: white;
+  border-radius: 18px;
+
+  box-shadow: 0 20px 60px rgba(20, 25, 40, 0.18);
+
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+
+  padding: 24px 26px 18px;
+
+  border-bottom: 1px solid #edf0f4;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: #273044;
+  font-size: 18px;
+}
+
+.modal-header p {
+  margin: 6px 0 0;
+  color: #929bab;
+  font-size: 11px;
+}
+
+.close-button {
+  width: 30px;
+  height: 30px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #f4f5f8;
+  color: #8c95a5;
+
+  font-size: 20px;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.upload-area {
+  margin: 22px 26px;
+  padding: 34px 24px;
+
+  text-align: center;
+
+  border: 1.5px dashed #d9ddea;
+  border-radius: 14px;
+
+  background: #fafbfe;
+}
+
+.upload-icon {
+  width: 52px;
+  height: 52px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin: 0 auto 14px;
+
+  border-radius: 13px;
+
+  background: #eeeaff;
+  color: #625bea;
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.upload-area h3 {
+  margin: 0;
+  color: #354055;
+  font-size: 15px;
+}
+
+.upload-area > p {
+  margin: 7px 0 18px;
+  color: #9aa3b2;
+  font-size: 11px;
+}
+
+.file-select-button {
+  display: inline-flex;
+
+  padding: 9px 15px;
+
+  border-radius: 8px;
+
+  background: #625bea;
+  color: white;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.file-select-button input {
+  display: none;
+}
+
+.selected-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  margin-top: 18px;
+  padding: 11px 13px;
+
+  text-align: left;
+
+  border: 1px solid #e6e9f0;
+  border-radius: 9px;
+
+  background: white;
+}
+
+.selected-file > span {
+  font-size: 17px;
+}
+
+.selected-file div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.selected-file strong {
+  color: #465065;
+  font-size: 11px;
+}
+
+.selected-file small {
+  color: #a0a8b6;
+  font-size: 9px;
+}
+
+.upload-error {
+  margin-top: 14px;
+  padding: 9px 12px;
+
+  border-radius: 8px;
+
+  background: #fff1f0;
+  color: #d9534f;
+
+  font-size: 10px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+
+  padding: 16px 26px 22px;
+
+  border-top: 1px solid #edf0f4;
+}
+
+.cancel-button,
+.upload-button {
+  padding: 10px 16px;
+
+  border-radius: 8px;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.cancel-button {
+  border: 1px solid #e2e5eb;
+  background: white;
+  color: #7e8797;
+}
+
+.upload-button {
+  border: none;
+  background: #625bea;
+  color: white;
+
+  box-shadow: 0 5px 12px rgba(98, 91, 234, 0.22);
+}
+
+.upload-button:disabled,
+.cancel-button:disabled,
+.close-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 </style>
+```
