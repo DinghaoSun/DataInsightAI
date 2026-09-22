@@ -72,6 +72,7 @@ const handleFileChange = (event) => {
   }
 
   selectedFile.value = file
+  console.log('选择的文件：', file.name, '文件大小：', file.size, 'bytes')
 }
 
 const uploadFile = async () => {
@@ -127,6 +128,18 @@ const uploadFile = async () => {
   } finally {
     uploading.value = false
   }
+}
+
+const formatFileSize = (bytes) => {
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(2)} KB`
+  }
+
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`
 }
 
 onMounted(fetchDatasets)
@@ -268,7 +281,7 @@ onMounted(fetchDatasets)
               <strong>{{ selectedFile.name }}</strong>
 
               <small>
-                {{ (selectedFile.size / 1024 / 1024).toFixed(2) }} MB
+                {{ formatFileSize(selectedFile.size) }}
               </small>
             </div>
           </div>
