@@ -4,6 +4,9 @@ import pandas as pd
 from fastapi import HTTPException, UploadFile
 
 
+MAX_FILE_SIZE = 20 * 1024 * 1024
+
+
 async def read_csv_file(file: UploadFile) -> pd.DataFrame:
     """
     读取并校验上传的 CSV 文件。
@@ -27,14 +30,21 @@ async def read_csv_file(file: UploadFile) -> pd.DataFrame:
         # 3. 读取文件
         content = await file.read()
 
-        # 4. 检查文件是否为空
+        # 4. 检查文件大小
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail="上传的 CSV 文件不能超过 20MB",
+            )
+
+        # 5. 检查文件是否为空
         if not content:
             raise HTTPException(
                 status_code=400,
                 detail="上传的 CSV 文件为空",
             )
 
-        # 5. 使用 Pandas 读取 CSV
+        # 6. 使用 Pandas 读取 CSV
         df = pd.read_csv(
             StringIO(content.decode("utf-8"))
         )

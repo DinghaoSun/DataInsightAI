@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,6 +13,7 @@ from app.services.csv_loader import read_csv_file
 
 
 app = FastAPI()
+logger = logging.getLogger(__name__)
 
 app.add_middleware(
     CORSMiddleware,
@@ -49,41 +52,15 @@ def get_datasets():
                 "row_count": dataset.row_count,
                 "column_count": dataset.column_count,
                 "uploaded_at": dataset.uploaded_at,
+                "status": dataset.status,
+                "error_message": dataset.error_message,
+                "updated_at": dataset.updated_at,
             }
             for dataset in datasets
         ]
 
     finally:
         db.close()
-
-@app.get("/api/data/datasets/{dataset_id}")
-def get_dataset(dataset_id: int):
-    db = SessionLocal()
-
-    try:
-        dataset = (
-            db.query(Dataset)
-            .filter(Dataset.id == dataset_id)
-            .first()
-        )
-
-        if dataset is None:
-            raise HTTPException(
-                status_code=404,
-                detail="数据集不存在"
-            )
-
-        return {
-            "id": dataset.id,
-            "filename": dataset.filename,
-            "row_count": dataset.row_count,
-            "column_count": dataset.column_count,
-            "uploaded_at": dataset.uploaded_at,
-        }
-
-    finally:
-        db.close()
-
 
 @app.get("/api/data/datasets/{dataset_id}")
 def get_dataset(dataset_id: int):
@@ -108,6 +85,9 @@ def get_dataset(dataset_id: int):
             "row_count": dataset.row_count,
             "column_count": dataset.column_count,
             "uploaded_at": dataset.uploaded_at,
+            "status": dataset.status,
+            "error_message": dataset.error_message,
+            "updated_at": dataset.updated_at,
         }
 
     finally:
@@ -144,16 +124,47 @@ def get_dataset_analysis(dataset_id: int):
         db.close()
 
 
+def mark_dataset_failed(dataset_id: int, error_message: str) -> None:
+    db = SessionLocal()
+
+    try:
+        dataset = (
+            db.query(Dataset)
+            .filter(Dataset.id == dataset_id)
+            .first()
+        )
+
+        if dataset is None:
+            logger.error(
+                "无法标记失败状态：Dataset %s 不存在",
+                dataset_id,
+            )
+            return
+
+        dataset.status = "failed"
+        dataset.error_message = error_message
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "更新 Dataset %s 失败状态时发生错误",
+            dataset_id,
+        )
+
+    finally:
+        db.close()
+
+
 @app.post("/api/data/analyze")
 async def analyze_data(file: UploadFile = File(...)):
+    dataset_id = None
+
     try:
         # 1. 读取并校验 CSV 文件
         df = await read_csv_file(file)
 
-        # 2. 执行数据分析
-        result = analyze_dataframe(df)
-
-        # 3. 保存数据集信息到 MySQL
+        # 2. 创建 pending Dataset，并立即释放数据库连接
         db = SessionLocal()
 
         try:
@@ -161,11 +172,13 @@ async def analyze_data(file: UploadFile = File(...)):
                 filename=file.filename,
                 row_count=len(df),
                 column_count=len(df.columns),
+                status="pending",
             )
 
             db.add(dataset)
             db.commit()
             db.refresh(dataset)
+            dataset_id = dataset.id
 
         except Exception:
             db.rollback()
@@ -173,50 +186,77 @@ async def analyze_data(file: UploadFile = File(...)):
 
         finally:
             db.close()
-
-        # 4. 生成规则型洞察
-        insights = generate_insights(result)
-
-        # 5. 生成 AI 洞察
-        ai_insight = generate_ai_insight(result)
-
-        # 6. 保存分析结果到 MySQL
-        db = SessionLocal()
 
         try:
-            analysis_record = DatasetAnalysis(
-                dataset_id=dataset.id,
-                analysis=result,
-                insights=insights,
-                ai_insight=ai_insight,
-            )
+            # 3. 数据分析和外部 AI 调用期间不持有数据库连接
+            result = analyze_dataframe(df)
+            insights = generate_insights(result)
+            ai_insight = generate_ai_insight(result)
 
-            db.add(analysis_record)
-            db.commit()
-            db.refresh(analysis_record)
+            # 4. 分析结果和 completed 状态在同一短事务中提交
+            db = SessionLocal()
+
+            try:
+                analysis_record = DatasetAnalysis(
+                    dataset_id=dataset_id,
+                    analysis=result,
+                    insights=insights,
+                    ai_insight=ai_insight,
+                )
+
+                dataset_to_update = (
+                    db.query(Dataset)
+                    .filter(Dataset.id == dataset_id)
+                    .first()
+                )
+
+                if dataset_to_update is None:
+                    raise RuntimeError("数据集记录不存在")
+
+                db.add(analysis_record)
+                dataset_to_update.status = "completed"
+                dataset_to_update.error_message = None
+                db.commit()
+
+            except Exception:
+                db.rollback()
+                raise
+
+            finally:
+                db.close()
 
         except Exception:
-            db.rollback()
-            raise
+            logger.exception(
+                "Dataset %s 分析失败",
+                dataset_id,
+            )
+            mark_dataset_failed(
+                dataset_id,
+                "数据分析失败，请稍后重新上传文件",
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="数据分析失败，请稍后重新上传文件",
+            )
 
-        finally:
-            db.close()
-
-        # 7. 返回完整分析结果
+        # 5. 保持原有返回字段，并追加任务标识和状态
         return {
             "filename": file.filename,
             "analysis": result,
             "insights": insights,
             "ai_insight": ai_insight,
+            "dataset_id": dataset_id,
+            "status": "completed",
         }
 
     except HTTPException:
         raise
 
-    except Exception as e:
+    except Exception:
+        logger.exception("创建 Dataset 分析任务失败")
         raise HTTPException(
             status_code=500,
-            detail=f"数据分析过程中发生错误：{str(e)}",
+            detail="数据分析任务创建失败，请稍后重试",
         )
 
 

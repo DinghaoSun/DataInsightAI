@@ -1,4 +1,3 @@
-```vue
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -38,6 +37,20 @@ const openUploadModal = () => {
   showUploadModal.value = true
   selectedFile.value = null
   uploadError.value = ''
+}
+
+const getStatusText = (status) => {
+  const statusText = {
+    pending: '分析中',
+    completed: '分析完成',
+    failed: '分析失败',
+  }
+
+  return statusText[status] || '状态未知'
+}
+
+const reopenUploadModal = () => {
+  openUploadModal()
 }
 
 const closeUploadModal = () => {
@@ -125,6 +138,8 @@ const uploadFile = async () => {
     } else {
       uploadError.value = '上传失败，请检查后端服务是否正常运行。'
     }
+
+    await fetchDatasets()
   } finally {
     uploading.value = false
   }
@@ -219,9 +234,20 @@ onMounted(fetchDatasets)
             <strong>{{ dataset.column_count }}</strong>
           </div>
 
-          <div class="status-tag">
+          <div
+            class="status-tag"
+            :class="dataset.status"
+          >
             <span class="small-dot"></span>
-            分析完成
+            {{ getStatusText(dataset.status) }}
+
+            <button
+              v-if="dataset.status === 'failed'"
+              class="retry-upload-button"
+              @click.stop="reopenUploadModal"
+            >
+              重新上传
+            </button>
           </div>
         </div>
       </div>
@@ -487,12 +513,41 @@ h1 {
   font-weight: 600;
 }
 
+.status-tag.pending {
+  color: #d97706;
+}
+
+.status-tag.failed {
+  color: #dc2626;
+}
+
 .small-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: #35c98b;
   box-shadow: 0 0 8px rgba(53, 201, 139, 0.6);
+}
+
+.status-tag.pending .small-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+}
+
+.status-tag.failed .small-dot {
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.45);
+}
+
+.retry-upload-button {
+  margin-left: 4px;
+  padding: 4px 8px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fff;
+  color: #dc2626;
+  font-size: 10px;
+  cursor: pointer;
 }
 
 .empty-state {
@@ -720,4 +775,3 @@ h1 {
   cursor: not-allowed;
 }
 </style>
-```

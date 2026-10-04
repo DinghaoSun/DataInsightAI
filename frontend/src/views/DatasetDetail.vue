@@ -118,13 +118,13 @@
 
           class="analysis-status"
 
-          :class="{ pending: !analysis }"
+          :class="dataset.status"
 
         >
 
           <span class="status-dot"></span>
 
-          {{ analysis ? '分析完成' : '待分析' }}
+          {{ getStatusText(dataset.status) }}
 
         </div>
 
@@ -240,17 +240,17 @@
 
             class="status-value"
 
-            :class="{ pending: !analysis }"
+            :class="dataset.status"
 
           >
 
-            {{ analysis ? '已完成' : '待分析' }}
+            {{ getStatusText(dataset.status) }}
 
           </div>
 
           <div class="stat-desc">
 
-            {{ analysis ? 'AI 分析结果可用' : '暂无分析结果' }}
+            {{ getStatusDescription(dataset.status) }}
 
           </div>
 
@@ -259,6 +259,8 @@
         </div>
 
       </section>
+
+      <template v-if="dataset.status === 'completed' && analysis">
 
       <!-- 数据质量 + 分析摘要 -->
 
@@ -1136,11 +1138,13 @@
 
       </section>
 
+      </template>
+
       <!-- 没有分析结果 -->
 
       <section
 
-        v-if="!analysis"
+        v-if="dataset.status === 'pending'"
 
         class="panel-card empty-analysis"
 
@@ -1154,26 +1158,74 @@
 
         <h3>
 
-          暂无分析结果
+          正在分析
 
         </h3>
 
         <p>
 
-          当前数据集还没有可用的分析结果。
+          当前数据集正在生成分析结果，请稍后刷新状态。
 
         </p>
 
         <button
 
-          class="disabled-button"
+          class="state-action-button"
 
-          disabled
+          @click="fetchDataset"
 
         >
 
-          分析功能待接入
+          刷新状态
 
+        </button>
+
+      </section>
+
+      <section
+
+        v-else-if="dataset.status === 'failed'"
+
+        class="panel-card empty-analysis failed-analysis"
+
+      >
+
+        <div class="empty-analysis-icon">!</div>
+
+        <h3>分析失败</h3>
+
+        <p>
+          {{ dataset.error_message || '数据分析失败，请重新上传文件。' }}
+        </p>
+
+        <button
+          class="state-action-button failed-button"
+          @click="goToUpload"
+        >
+          重新上传
+        </button>
+
+      </section>
+
+      <section
+
+        v-else-if="dataset.status === 'completed' && analysisError"
+
+        class="panel-card empty-analysis failed-analysis"
+
+      >
+
+        <div class="empty-analysis-icon">!</div>
+
+        <h3>分析记录异常，请重新上传数据</h3>
+
+        <p>数据集状态已完成，但没有找到对应的分析记录。</p>
+
+        <button
+          class="state-action-button failed-button"
+          @click="goToUpload"
+        >
+          重新上传
         </button>
 
       </section>
@@ -1220,6 +1272,8 @@ const loading = ref(true)
 
 const error = ref('')
 
+const analysisError = ref(false)
+
 const missingChartRef = ref(null)
 const numericChartRef = ref(null)
 
@@ -1240,6 +1294,8 @@ const fetchDataset = async () => {
 
     error.value = ''
 
+    analysisError.value = false
+
     const response = await api.get(
 
       `/api/data/datasets/${route.params.id}`
@@ -1248,27 +1304,33 @@ const fetchDataset = async () => {
 
     dataset.value = response.data
 
-    try {
+    analysis.value = null
 
-      const analysisResponse = await api.get(
+    if (dataset.value.status === 'completed') {
 
-        `/api/data/datasets/${route.params.id}/analysis`
+      try {
 
-      )
+        const analysisResponse = await api.get(
 
-      analysis.value = analysisResponse.data
+          `/api/data/datasets/${route.params.id}/analysis`
 
-    } catch (err) {
+        )
 
-      console.warn(
+        analysis.value = analysisResponse.data
 
-        '该数据集暂无分析结果：',
+      } catch (err) {
 
-        err
+        console.warn(
 
-      )
+          '已完成的数据集缺少分析记录：',
 
-      analysis.value = null
+          err
+
+        )
+
+        analysisError.value = true
+
+      }
 
     }
 
@@ -1307,6 +1369,36 @@ const fetchDataset = async () => {
 const goBack = () => {
 
   router.push('/datasets')
+
+}
+
+const goToUpload = () => {
+
+  router.push('/datasets')
+
+}
+
+const getStatusText = (status) => {
+
+  const statusText = {
+    pending: '正在分析',
+    completed: '分析完成',
+    failed: '分析失败',
+  }
+
+  return statusText[status] || '状态未知'
+
+}
+
+const getStatusDescription = (status) => {
+
+  const descriptions = {
+    pending: '正在生成分析结果',
+    completed: 'AI 分析结果可用',
+    failed: '请重新上传数据文件',
+  }
+
+  return descriptions[status] || '暂无状态信息'
 
 }
 
@@ -2424,6 +2516,14 @@ onBeforeUnmount(() => {
 
 }
 
+.analysis-status.failed {
+
+  background: #fef2f2;
+
+  color: #dc2626;
+
+}
+
 .status-dot {
 
   width: 7px;
@@ -2439,6 +2539,12 @@ onBeforeUnmount(() => {
 .analysis-status.pending .status-dot {
 
   background: #f97316;
+
+}
+
+.analysis-status.failed .status-dot {
+
+  background: #ef4444;
 
 }
 
@@ -2591,6 +2697,12 @@ onBeforeUnmount(() => {
 .status-value.pending {
 
   color: #f97316;
+
+}
+
+.status-value.failed {
+
+  color: #dc2626;
 
 }
 
@@ -3796,7 +3908,7 @@ onBeforeUnmount(() => {
 
 }
 
-.disabled-button {
+.state-action-button {
 
   border: none;
 
@@ -3804,13 +3916,29 @@ onBeforeUnmount(() => {
 
   border-radius: 9px;
 
-  background: #f1f5f9;
+  background: #f1eaff;
 
-  color: #94a3b8;
+  color: #7c3aed;
 
   font-size: 11px;
 
-  cursor: not-allowed;
+  cursor: pointer;
+
+}
+
+.failed-analysis .empty-analysis-icon {
+
+  background: #fef2f2;
+
+  color: #dc2626;
+
+}
+
+.failed-button {
+
+  background: #fef2f2;
+
+  color: #dc2626;
 
 }
 

@@ -26,7 +26,7 @@ const stats = computed(() => [
       (total, dataset) => total + dataset.row_count,
       0
     ),
-    description: '累计分析数据',
+    description: '累计上传数据',
     icon: '⌁',
   },
   {
@@ -100,9 +100,7 @@ onMounted(async () => {
             {{ stat.icon }}
           </div>
 
-          <span class="stat-trend">
-            +12.5%
-          </span>
+          <span class="stat-trend">实时</span>
         </div>
 
         <div class="stat-title">
@@ -239,34 +237,47 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="ai-content">
+        <div
+          v-if="recentDatasets.length > 0"
+          class="ai-content"
+        >
           <div class="ai-title">
             <span class="ai-star">✦</span>
 
-            数据分析完成
+            数据分析概览
           </div>
 
           <p>
-            当前数据集整体质量较好，检测到少量缺失值。
-            建议重点关注销售金额字段，并进一步分析异常数据。
+            当前已上传 {{ recentDatasets.length }} 个数据集，
+            已保存 {{ analysisCount }} 次分析结果。
           </p>
 
           <div class="insight-list">
             <div class="insight-item">
               <span class="insight-number">01</span>
-              <span>数据完整性达到 94%</span>
+              <span>整体数据质量评分 {{ qualityScore }}%</span>
             </div>
 
             <div class="insight-item">
               <span class="insight-number">02</span>
-              <span>发现 23 条潜在异常记录</span>
+              <span>已上传数据集 {{ recentDatasets.length }} 个</span>
             </div>
 
             <div class="insight-item">
               <span class="insight-number">03</span>
-              <span>销售金额呈现增长趋势</span>
+              <span>已保存分析结果 {{ analysisCount }} 次</span>
             </div>
           </div>
+        </div>
+
+        <div v-else class="ai-content">
+          <div class="ai-title">
+            <span class="ai-star">✦</span>
+
+            暂无分析数据
+          </div>
+
+          <p>上传并分析 CSV 文件后，这里将展示真实的数据分析概览。</p>
         </div>
 
         <button class="text-button">
