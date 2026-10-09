@@ -2,49 +2,39 @@
   <aside class="sidebar">
     <!-- Logo -->
     <div class="logo-area">
-      <div class="logo-icon">D</div>
-
-      <div class="logo-text">
-        <div class="logo-title">DataInsightAI</div>
-        <div class="logo-subtitle">智能数据分析平台</div>
-      </div>
+      <div class="logo-symbol">△<small>DIA</small></div>
     </div>
 
     <!-- Navigation -->
     <nav class="nav-menu">
-      <div class="nav-section-title">工作台</div>
-
       <RouterLink to="/" class="nav-item">
-        <span class="nav-icon">📊</span>
-        <span>数据总览</span>
+        <span class="nav-icon">⌂</span><span>总览</span>
       </RouterLink>
 
       <RouterLink to="/datasets" class="nav-item">
-        <span class="nav-icon">📁</span>
-        <span>数据集</span>
+        <span class="nav-icon">▣</span><span>数据集</span>
       </RouterLink>
+      <RouterLink to="/datasets" class="nav-item"><span class="nav-icon">⌁</span><span>分析</span></RouterLink>
+      <RouterLink to="/datasets" class="nav-item"><span class="nav-icon">◉</span><span>洞察</span></RouterLink>
+      <RouterLink to="/datasets" class="nav-item"><span class="nav-icon">⚙</span><span>设置</span></RouterLink>
     </nav>
 
     <!-- Bottom -->
     <div class="sidebar-bottom">
-      <div class="project-info">
-        <div class="project-dot"></div>
-
-        <div>
-          <div class="project-name">DataInsightAI</div>
-          <div class="project-version">V1.0</div>
-        </div>
-      </div>
+      <div class="project-info"><div class="project-dot"></div><div><div class="project-name">DIA 精灵</div></div></div>
     </div>
   </aside>
 </template>
 
 <style scoped>
 .sidebar {
-  width: 240px;
+  width: 124px;
+  min-width: 124px;
+  max-width: 124px;
+  flex: 0 0 124px;
   height: 100vh;
   background: #ffffff;
-  border-right: 1px solid #eaeaea;
+  border-right: 1px solid #edf0fa;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -54,27 +44,13 @@
 /* Logo */
 
 .logo-area {
-  height: 80px;
-  display: flex;
+  height: 128px; display:flex;
   align-items: center;
-  padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
+  justify-content:center; padding:0;
   box-sizing: border-box;
 }
 
-.logo-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
-  background: linear-gradient(135deg, #aa3bff, #7c3aed);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  font-weight: 700;
-  margin-right: 11px;
-}
+.logo-symbol{font-size:48px;font-weight:800;color:#6748ee;line-height:.7;text-align:center}.logo-symbol small{display:block;color:#394873;font-size:16px;letter-spacing:1px;margin-top:10px}
 
 .logo-title {
   font-size: 15px;
@@ -91,7 +67,7 @@
 /* Navigation */
 
 .nav-menu {
-  padding: 24px 14px;
+  padding: 22px 12px;
 }
 
 .nav-section-title {
@@ -102,15 +78,15 @@
 }
 
 .nav-item {
-  height: 44px;
+  height: 48px;
   display: flex;
   align-items: center;
   padding: 0 12px;
   margin-bottom: 6px;
   border-radius: 10px;
   text-decoration: none;
-  color: #555555;
-  font-size: 14px;
+  color: #566486;
+  font-size: 13px;
   font-weight: 500;
   transition: all 0.2s ease;
   box-sizing: border-box;
@@ -128,15 +104,14 @@
 }
 
 .nav-icon {
-  width: 28px;
-  font-size: 17px;
+  width: 26px;font-size: 19px;
 }
 
 /* Bottom */
 
 .sidebar-bottom {
   margin-top: auto;
-  padding: 18px;
+  padding: 16px 12px;
   border-top: 1px solid #f0f0f0;
 }
 

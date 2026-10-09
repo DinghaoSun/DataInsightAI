@@ -8,3 +8,6 @@ __pycache__/
 
 # IDE
 .vscode/
+
+# Browser test artifacts
+.playwright-cli/

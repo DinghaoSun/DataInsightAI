@@ -1,910 +1,855 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import api, { getAnalysisCount } from '../services/api'
+import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import api, { getAnalysisCount } from "../services/api";
+import diaNormalHalf from "../assets/dia/dia-normal-half.png";
+import diaHeroPointing from "../assets/dia/dia-hero-pointing-transparent.png";
 
-const router = useRouter()
+const router = useRouter();
+const datasets = ref([]);
+const analysisCount = ref(null);
+const qualityScore = ref(null);
+const loading = ref(true);
+const datasetsError = ref("");
+const analysisCountError = ref("");
+const qualityError = ref("");
 
-const goToDatasets = () => {
-  router.push('/datasets')
-}
+const go = (path) => router.push(path);
 
-const recentDatasets = ref([])
-const analysisCount = ref(0)
-const qualityScore = ref(0)
+const formatNumber = (value) => {
+  if (value === null || value === undefined) return "--";
+  return new Intl.NumberFormat("zh-CN").format(value);
+};
+
+const formatDate = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${month}-${day} ${hours}:${minutes}`;
+};
+
+const formatStatus = (status) =>
+  ({
+    pending: "分析中",
+    completed: "分析完成",
+    failed: "分析失败",
+  })[status] || "状态未知";
+
+const totalRows = computed(() =>
+  datasets.value.reduce(
+    (total, dataset) => total + (Number(dataset.row_count) || 0),
+    0,
+  ),
+);
+const recentDatasets = computed(() => datasets.value.slice(0, 4));
+
+const qualityValue = computed(() => {
+  if (qualityError.value) return "--";
+  if (analysisCount.value === 0) return "暂无数据";
+  if (qualityScore.value === null) return "--";
+  return `${formatNumber(qualityScore.value)}%`;
+});
 
 const stats = computed(() => [
   {
-    title: '数据集',
-    value: recentDatasets.value.length,
-    description: '已上传数据集',
-    icon: '▣',
+    title: "数据集总数",
+    value: datasetsError.value ? "--" : formatNumber(datasets.value.length),
+    description: datasetsError.value ? "加载失败" : "已上传的数据集",
+    icon: "▱",
+    available: !datasetsError.value,
   },
   {
-    title: '数据记录',
-    value: recentDatasets.value.reduce(
-      (total, dataset) => total + dataset.row_count,
-      0
-    ),
-    description: '累计上传数据',
-    icon: '⌁',
+    title: "数据记录",
+    value: datasetsError.value ? "--" : formatNumber(totalRows.value),
+    description: datasetsError.value ? "加载失败" : "累计数据行数",
+    icon: "▤",
+    available: !datasetsError.value,
   },
   {
-    title: '分析次数',
-    value: analysisCount.value,
-    description: 'AI 分析已完成',
-    icon: '◈',
+    title: "分析次数",
+    value: analysisCountError.value ? "--" : formatNumber(analysisCount.value),
+    description: analysisCountError.value ? "加载失败" : "已保存的分析结果",
+    icon: "⌁",
+    available: !analysisCountError.value,
   },
   {
-    title: '数据质量',
-    value: `${qualityScore.value}%`,
-    description: '整体数据质量',
-    icon: '✓',
+    title: "平均数据质量",
+    value: qualityValue.value,
+    description: qualityError.value
+      ? "加载失败"
+      : analysisCount.value === 0
+        ? "暂无分析结果"
+        : "所有分析结果平均值",
+    icon: "✓",
+    available: !qualityError.value && analysisCount.value !== 0,
   },
-])
+]);
 
-onMounted(async () => {
-  try {
-    const response = await api.get('/api/data/datasets')
+const uploadTrend = computed(() => {
+  const countsByDay = new Map();
 
-    recentDatasets.value = response.data
+  for (const dataset of datasets.value) {
+    const uploadedAt = new Date(dataset.uploaded_at);
+    if (Number.isNaN(uploadedAt.getTime())) continue;
 
-    const analysisResponse = await getAnalysisCount()
-    analysisCount.value = analysisResponse.data.count
-
-    const qualityResponse = await api.get('/api/data/quality')
-    qualityScore.value = qualityResponse.data.quality_score
-  } catch (error) {
-    console.error('获取数据失败：', error)
+    const key = [
+      uploadedAt.getFullYear(),
+      String(uploadedAt.getMonth() + 1).padStart(2, "0"),
+      String(uploadedAt.getDate()).padStart(2, "0"),
+    ].join("-");
+    countsByDay.set(key, (countsByDay.get(key) || 0) + 1);
   }
-})
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - (6 - index));
+    const key = [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, "0"),
+      String(date.getDate()).padStart(2, "0"),
+    ].join("-");
+
+    return {
+      key,
+      label: `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`,
+      count: countsByDay.get(key) || 0,
+    };
+  });
+});
+
+const hasUploadTrend = computed(() =>
+  uploadTrend.value.some((item) => item.count > 0),
+);
+const trendMax = computed(() =>
+  Math.max(...uploadTrend.value.map((item) => item.count), 1),
+);
+const trendY = (count) => 155 - (count / trendMax.value) * 115;
+const trendX = (index) => 35 + index * 70;
+const trendPoints = computed(() =>
+  uploadTrend.value
+    .map((item, index) => `${trendX(index)},${trendY(item.count)}`)
+    .join(" "),
+);
+
+const loadErrors = computed(() =>
+  [datasetsError.value, analysisCountError.value, qualityError.value].filter(
+    Boolean,
+  ),
+);
+
+const diaMessage = computed(() => {
+  if (loading.value) return "我正在整理最新的数据，请稍等一下。";
+  if (loadErrors.value.length) return "部分数据暂时无法加载，可以稍后重试。";
+  if (datasets.value.length === 0)
+    return "还没有数据集，上传一份 CSV 开始分析吧。";
+  return `目前共有 ${formatNumber(datasets.value.length)} 个数据集，包含 ${formatNumber(totalRows.value)} 条数据记录。`;
+});
+
+const loadDashboard = async () => {
+  loading.value = true;
+  datasetsError.value = "";
+  analysisCountError.value = "";
+  qualityError.value = "";
+
+  const [datasetsResult, countResult, qualityResult] = await Promise.allSettled(
+    [
+      api.get("/api/data/datasets"),
+      getAnalysisCount(),
+      api.get("/api/data/quality"),
+    ],
+  );
+
+  if (datasetsResult.status === "fulfilled") {
+    datasets.value = Array.isArray(datasetsResult.value.data)
+      ? datasetsResult.value.data
+      : [];
+  } else {
+    datasets.value = [];
+    datasetsError.value = "数据集列表加载失败";
+  }
+
+  if (countResult.status === "fulfilled") {
+    const count = countResult.value.data?.count;
+    analysisCount.value = Number.isFinite(Number(count)) ? Number(count) : null;
+  } else {
+    analysisCount.value = null;
+    analysisCountError.value = "分析次数加载失败";
+  }
+
+  if (qualityResult.status === "fulfilled") {
+    const score = qualityResult.value.data?.quality_score;
+    qualityScore.value = Number.isFinite(Number(score)) ? Number(score) : null;
+  } else {
+    qualityScore.value = null;
+    qualityError.value = "数据质量加载失败";
+  }
+
+  loading.value = false;
+};
+
+onMounted(loadDashboard);
 </script>
 
 <template>
   <div class="dashboard-page">
-    <!-- 顶部栏 -->
-    <header class="topbar">
-      <div>
-        <div class="breadcrumb">工作台 / 数据总览</div>
-
-        <h1>数据分析工作台</h1>
-
-        <p>欢迎回来，开始探索你的数据吧。</p>
-      </div>
-
-      <div class="topbar-actions">
-        <button class="icon-button">⌕</button>
-
-        <button class="icon-button">♢</button>
-
-        <div class="user-profile">
-          <div class="avatar">D</div>
-
-          <div class="user-info">
-            <div class="user-name">Data User</div>
-            <div class="user-role">分析员</div>
-          </div>
-        </div>
+    <header class="top">
+      <h1>数据总览</h1>
+      <div class="account">
+        <span class="bell">♧</span>
+        <span class="avatar">D</span>
+        <div><b>DataInsightAI</b><small>分析员</small></div>
+        <span>⌄</span>
       </div>
     </header>
 
-    <!-- 核心统计卡片 -->
-    <section class="stats-grid">
-      <div
-        v-for="stat in stats"
-        :key="stat.title"
-        class="stat-card"
-      >
-        <div class="stat-top">
-          <div class="stat-icon">
-            {{ stat.icon }}
-          </div>
-
-          <span class="stat-trend">实时</span>
-        </div>
-
-        <div class="stat-title">
-          {{ stat.title }}
-        </div>
-
-        <div class="stat-value">
-          {{ stat.value }}
-        </div>
-
-        <div class="stat-description">
-          {{ stat.description }}
+    <section class="banner">
+      <div>
+        <h2>欢迎回来，鼎皓! 👋</h2>
+        <p>DIA 已经准备好帮你探索数据世界了</p>
+        <div class="pills">
+          <span>◈ 数据驱动决策</span><span>◌ 智能分析</span>
+          <span>⌁ 洞察未来</span><span>✣ 简单高效</span>
         </div>
       </div>
+      <div class="speech">数据都在这里，<br />需要我帮你看看吗？</div>
+      <img class="hero-pointing" :src="diaHeroPointing" alt="DIA" />
     </section>
 
-    <!-- 上传区域 -->
-    <section class="upload-card">
-      <div class="upload-content">
-        <div class="upload-icon">
-          ↑
-        </div>
+    <div v-if="loadErrors.length" class="error" role="alert">
+      {{ loadErrors.join("；") }}
+      <button @click="loadDashboard">重试</button>
+    </div>
 
+    <section class="stats">
+      <div v-for="stat in stats" :key="stat.title" class="metric">
+        <i>{{ stat.icon }}</i>
         <div>
-          <h2>开始新的数据分析</h2>
-
-          <p>
-            上传 CSV 文件，让 DataInsightAI 帮你发现数据中的价值。
-          </p>
+          <small>{{ stat.title }}</small>
+          <strong>{{ loading ? "--" : stat.value }}</strong>
+          <em>{{ loading ? "正在加载" : stat.description }}</em>
         </div>
+        <label v-if="!loading && stat.available">实时数据</label>
       </div>
-
-      <button
-        class="primary-button"
-        @click="goToDatasets"
-      >
-        <span>＋</span>
-        上传数据
-      </button>
     </section>
 
-    <!-- 中间区域 -->
-    <section class="dashboard-grid">
-      <!-- 数据分析趋势 -->
-      <div class="panel chart-panel">
-        <div class="panel-header">
+    <section class="grid">
+      <article class="panel trend">
+        <header>
+          <h3>数据趋势</h3>
+          <span class="period">近 7 天</span>
+        </header>
+        <div class="legend">● 数据集上传数量</div>
+        <div v-if="loading" class="panel-state">正在加载趋势数据...</div>
+        <div v-else-if="datasetsError" class="panel-state error-state">
+          趋势数据加载失败
+        </div>
+        <div v-else-if="!hasUploadTrend" class="panel-state">
+          最近 7 天暂无数据集上传
+        </div>
+        <svg
+          v-else
+          viewBox="0 0 500 205"
+          preserveAspectRatio="none"
+          aria-label="最近 7 天数据集上传趋势"
+        >
+          <path class="grid-line" d="M35 40H455M35 95H455M35 150H455" />
+          <polyline class="trend-line" :points="trendPoints" />
+          <g v-for="(item, index) in uploadTrend" :key="item.key">
+            <circle
+              class="trend-point"
+              :cx="trendX(index)"
+              :cy="trendY(item.count)"
+              r="4"
+            />
+            <text
+              class="trend-count"
+              :x="trendX(index)"
+              :y="trendY(item.count) - 10"
+            >
+              {{ item.count }}
+            </text>
+            <text class="trend-label" :x="trendX(index)" y="190">
+              {{ item.label }}
+            </text>
+          </g>
+        </svg>
+      </article>
+
+      <article class="panel recent">
+        <header>
+          <h3>最近数据集</h3>
+          <button class="link" @click="go('/datasets')">查看全部 →</button>
+        </header>
+        <div v-if="loading" class="empty">正在加载数据集...</div>
+        <div v-else-if="datasetsError" class="empty error-state">
+          最近数据集加载失败
+        </div>
+        <template v-else>
+          <button
+            v-for="dataset in recentDatasets"
+            :key="dataset.id"
+            class="row"
+            @click="go(`/datasets/${dataset.id}`)"
+          >
+            <i>▤</i>
+            <span
+              ><b>{{ dataset.filename }}</b
+              ><small
+                >{{ formatNumber(dataset.row_count) }} 行 ·
+                {{ formatDate(dataset.uploaded_at) }}</small
+              ></span
+            >
+            <label :class="dataset.status">{{
+              formatStatus(dataset.status)
+            }}</label
+            >›
+          </button>
+          <div v-if="recentDatasets.length === 0" class="empty">暂无数据集</div>
+        </template>
+      </article>
+
+      <article class="panel quality">
+        <h3>数据质量分布</h3>
+        <div class="quality-empty">
+          <div class="quality-placeholder">--</div>
           <div>
-            <h2>数据分析趋势</h2>
-
-            <p>最近 7 天的数据分析情况</p>
+            <strong>暂无分布数据</strong>
+            <p>当前仅提供平均数据质量，尚无各评分区间的分布统计。</p>
           </div>
+        </div>
+      </article>
+    </section>
 
-          <button class="period-button">
-            最近 7 天⌄
+    <section class="bottom">
+      <article class="dia">
+        <img :src="diaNormalHalf" alt="DIA" />
+        <div>
+          <h3>DIA 想对你说</h3>
+          <p>{{ diaMessage }}</p>
+          <button @click="go('/datasets')">查看数据集 ↗</button>
+        </div>
+      </article>
+      <article class="quick">
+        <h3>快速开始</h3>
+        <div>
+          <button @click="go('/datasets')">
+            ↥ <b>上传数据<small>支持 CSV 文件</small></b>
+          </button>
+          <button>
+            ◉ <b>智能分析<small>AI 驱动分析</small></b>
+          </button>
+          <button>
+            ◉ <b>数据洞察<small>发现数据价值</small></b>
+          </button>
+          <button>
+            ▤ <b>报告生成<small>导出分析报告</small></b>
           </button>
         </div>
-
-        <div class="chart">
-          <div class="chart-y">
-            <span>40</span>
-            <span>30</span>
-            <span>20</span>
-            <span>10</span>
-            <span>0</span>
-          </div>
-
-          <div class="chart-area">
-            <div class="grid-line line-1"></div>
-            <div class="grid-line line-2"></div>
-            <div class="grid-line line-3"></div>
-            <div class="grid-line line-4"></div>
-
-            <div class="fake-chart">
-              <div
-                class="bar"
-                style="height: 42%"
-              ></div>
-
-              <div
-                class="bar"
-                style="height: 55%"
-              ></div>
-
-              <div
-                class="bar"
-                style="height: 48%"
-              ></div>
-
-              <div
-                class="bar"
-                style="height: 70%"
-              ></div>
-
-              <div
-                class="bar"
-                style="height: 62%"
-              ></div>
-
-              <div
-                class="bar"
-                style="height: 82%"
-              ></div>
-
-              <div
-                class="bar active-bar"
-                style="height: 92%"
-              ></div>
-            </div>
-
-            <div class="chart-x">
-              <span>09/09</span>
-              <span>09/10</span>
-              <span>09/11</span>
-              <span>09/12</span>
-              <span>09/13</span>
-              <span>09/14</span>
-              <span>09/15</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- AI 洞察 -->
-      <div class="panel ai-panel">
-        <div class="panel-header">
-          <div>
-            <h2>AI 智能洞察</h2>
-
-            <p>最近一次分析结果</p>
-          </div>
-
-          <div class="ai-badge">
-            AI
-          </div>
-        </div>
-
-        <div
-          v-if="recentDatasets.length > 0"
-          class="ai-content"
-        >
-          <div class="ai-title">
-            <span class="ai-star">✦</span>
-
-            数据分析概览
-          </div>
-
-          <p>
-            当前已上传 {{ recentDatasets.length }} 个数据集，
-            已保存 {{ analysisCount }} 次分析结果。
-          </p>
-
-          <div class="insight-list">
-            <div class="insight-item">
-              <span class="insight-number">01</span>
-              <span>整体数据质量评分 {{ qualityScore }}%</span>
-            </div>
-
-            <div class="insight-item">
-              <span class="insight-number">02</span>
-              <span>已上传数据集 {{ recentDatasets.length }} 个</span>
-            </div>
-
-            <div class="insight-item">
-              <span class="insight-number">03</span>
-              <span>已保存分析结果 {{ analysisCount }} 次</span>
-            </div>
-          </div>
-        </div>
-
-        <div v-else class="ai-content">
-          <div class="ai-title">
-            <span class="ai-star">✦</span>
-
-            暂无分析数据
-          </div>
-
-          <p>上传并分析 CSV 文件后，这里将展示真实的数据分析概览。</p>
-        </div>
-
-        <button class="text-button">
-          查看完整 AI 分析 →
-        </button>
-      </div>
+      </article>
     </section>
-
-    <!-- 最近数据集 -->
-    <section class="panel datasets-panel">
-      <div class="panel-header">
-        <div>
-          <h2>最近数据集</h2>
-
-          <p>你最近分析过的数据文件</p>
-        </div>
-
-        <button
-          class="text-button"
-          @click="goToDatasets"
-        >
-          查看全部 →
-        </button>
-      </div>
-
-      <div class="dataset-table">
-        <div class="table-header">
-          <span>数据集名称</span>
-          <span>数据量</span>
-          <span>字段数</span>
-          <span>状态</span>
-        </div>
-
-        <div
-          v-for="dataset in recentDatasets"
-          :key="dataset.id"
-          class="table-row"
-        >
-          <span class="dataset-name">
-            <span class="file-icon">CSV</span>
-
-            <span>{{ dataset.filename }}</span>
-          </span>
-
-          <span>
-            {{ dataset.row_count }}
-          </span>
-
-          <span>
-            {{ dataset.column_count }}
-          </span>
-
-          <span class="status-tag">
-            <span class="small-dot"></span>
-
-            <span>分析完成</span>
-          </span>
-        </div>
-
-        <div
-          v-if="recentDatasets.length === 0"
-          class="empty-state"
-        >
-          暂无数据集，上传一个 CSV 文件开始分析吧。
-        </div>
-      </div>
-    </section>
-
-    <!-- 页脚 -->
-    <footer class="footer">
-      DataInsightAI · Intelligent Data Analysis Platform
-    </footer>
   </div>
 </template>
 
 <style>
 .dashboard-page {
+  display: block;
   width: 100%;
+  max-width: none;
+  min-width: 0;
   min-height: 100vh;
+  padding: 25px 34px 36px;
+  background: linear-gradient(135deg, #f7f9ff, #f5f6ff);
+  color: #13234f;
 }
-
-/* Topbar */
-
-.topbar {
+.top {
   display: flex;
-  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 30px;
+  align-items: center;
+  margin-bottom: 22px;
 }
-
-.breadcrumb {
-  color: #8b95a7;
-  font-size: 12px;
-  margin-bottom: 8px;
-}
-
-h1 {
+.top h1 {
   margin: 0;
-  color: #172033;
   font-size: 28px;
-  letter-spacing: -0.8px;
 }
-
-.topbar p {
-  margin: 7px 0 0;
-  color: #8b95a7;
-  font-size: 13px;
-}
-
-.topbar-actions {
+.account {
   display: flex;
   align-items: center;
   gap: 10px;
+  font-size: 12px;
 }
-
-.icon-button {
-  width: 38px;
-  height: 38px;
-  border: 1px solid #e5e8ef;
-  background: white;
-  color: #657087;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 17px;
+.account small {
+  display: block;
+  color: #9aa3bf;
+  font-size: 10px;
 }
-
-.icon-button:hover {
-  background: #f8f7ff;
+.bell {
+  margin-right: 15px;
+  font-size: 24px;
 }
-
-.user-profile {
-  margin-left: 8px;
-  padding-left: 16px;
-  border-left: 1px solid #e1e5ec;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-}
-
-.user-name {
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.user-role {
-  margin-top: 2px;
-  color: #9099aa;
-  font-size: 10px;
-}
-
-/* Stats */
-
-.stats-grid {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 18px;
+  place-items: center;
+  background: #265ce8;
+  color: #fff;
+  font-size: 18px;
 }
-
-.stat-card {
-  background: white;
-  border: 1px solid #e9ecf2;
-  border-radius: 15px;
-  padding: 20px;
-  box-shadow: 0 5px 18px rgba(25, 35, 55, 0.035);
+.banner {
+  position: relative;
+  height: 320px;
+  overflow: visible;
+  padding: 40px 46% 24px 46px;
+  border: 1px solid #edf0ff;
+  border-radius: 16px;
+  background: linear-gradient(110deg, #fff, #f5f4ff 70%, #ede9ff);
 }
-
-.stat-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.banner h2 {
+  margin: 0 0 7px;
+  font-size: 30px;
+  line-height: 1.25;
 }
-
-.stat-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: #f0efff;
-  color: #655eea;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.banner p {
+  margin: 0 0 26px;
+  color: #53618d;
   font-size: 17px;
 }
-
-.stat-trend {
-  color: #2caf78;
-  background: #eafaf3;
-  border-radius: 20px;
-  padding: 4px 8px;
-  font-size: 10px;
+.pills {
+  display: flex;
+  gap: 15px;
 }
-
-.stat-title {
-  margin-top: 18px;
-  color: #7d8799;
-  font-size: 12px;
-}
-
-.stat-value {
-  margin-top: 4px;
-  font-size: 26px;
-  font-weight: 750;
-  letter-spacing: -0.5px;
-}
-
-.stat-description {
-  margin-top: 4px;
-  color: #a0a8b6;
+.pills span {
+  padding: 8px 14px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 3px 12px #4b4da711;
+  color: #5863a1;
   font-size: 11px;
 }
-
-/* Upload */
-
-.upload-card {
-  margin-top: 20px;
-  padding: 20px 24px;
-  border: 1px dashed #bbb9f6;
-  border-radius: 15px;
-  background: linear-gradient(100deg, #f7f6ff, #ffffff);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.banner .hero-pointing {
+  position: absolute;
+  top: 0;
+  right: -8px;
+  width: 520px;
+  height: auto;
+  max-width: none;
+  object-fit: contain;
+  object-position: center top;
+  filter: drop-shadow(0 12px 16px #3c398922);
 }
-
-.upload-content {
+.speech {
+  position: absolute;
+  top: 52px;
+  right: 440px;
+  z-index: 2;
+  padding: 20px 22px;
+  border: 1px solid #e8e6ff;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 18px #4c49ad1a;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.8;
+}
+.error {
+  margin: 12px 0;
+  padding: 9px 14px;
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #db4562;
+}
+.error button {
+  float: right;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin: 14px 0;
+  border: 1px solid #e8eafe;
+  border-radius: 15px;
+  background: #fff;
+}
+.metric {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 15px;
+  min-height: 118px;
+  padding: 26px 25px;
+  border-right: 1px solid #edf0fa;
 }
-
-.upload-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  background: #e9e7ff;
-  color: #625bea;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 23px;
-  font-weight: 700;
+.metric:last-child {
+  border: 0;
 }
-
-.upload-card h2 {
-  margin: 0;
-  font-size: 15px;
-}
-
-.upload-card p {
-  margin: 5px 0 0;
-  color: #8b95a7;
-  font-size: 12px;
-}
-
-.primary-button {
-  border: none;
-  padding: 11px 17px;
-  border-radius: 9px;
-  background: #625bea;
-  color: white;
-  font-weight: 600;
-  font-size: 12px;
-  cursor: pointer;
-  box-shadow: 0 6px 15px rgba(98, 91, 234, 0.25);
-  transition: transform 0.2s ease;
-}
-
-.primary-button:hover {
-  transform: translateY(-1px);
-}
-
-/* Panels */
-
-.dashboard-grid {
+.metric i {
+  width: 64px;
+  height: 64px;
   display: grid;
-  grid-template-columns: 1.55fr 1fr;
-  gap: 18px;
-  margin-top: 20px;
+  place-items: center;
+  border-radius: 17px;
+  background: #eeebff;
+  color: #5948f2;
+  font-size: 34px;
+  font-style: normal;
 }
-
-.panel {
-  background: white;
-  border: 1px solid #e9ecf2;
-  border-radius: 15px;
-  box-shadow: 0 5px 18px rgba(25, 35, 55, 0.035);
+.metric small,
+.metric em {
+  display: block;
+  color: #667294;
+  font-size: 13px;
+  font-style: normal;
 }
-
-.chart-panel,
-.ai-panel,
-.datasets-panel {
-  padding: 22px;
+.metric strong {
+  display: block;
+  margin: 5px 0;
+  font-size: 31px;
 }
-
-.panel-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.panel-header h2 {
-  margin: 0;
-  font-size: 15px;
-}
-
-.panel-header p {
-  margin: 5px 0 0;
-  color: #969faf;
+.metric em {
+  color: #8e98b7;
   font-size: 11px;
 }
-
-.period-button {
-  border: 1px solid #e6e9ef;
-  background: white;
-  color: #687287;
-  border-radius: 8px;
-  padding: 7px 10px;
-  font-size: 10px;
+.metric label {
+  position: absolute;
+  right: 20px;
+  bottom: 17px;
+  color: #22ad75;
+  font-size: 11px;
 }
-
-/* Chart */
-
-.chart {
-  height: 245px;
-  display: flex;
-  margin-top: 20px;
+.grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 1.1fr;
+  gap: 14px;
 }
-
-.chart-y {
-  width: 30px;
+.panel {
+  min-height: 300px;
+  padding: 20px 22px;
+  border: 1px solid #e8eafe;
+  border-radius: 15px;
+  background: #fff;
+}
+.panel header {
   display: flex;
-  flex-direction: column;
   justify-content: space-between;
-  padding-bottom: 25px;
-  color: #a3aab7;
-  font-size: 9px;
+  align-items: center;
 }
-
-.chart-area {
-  position: relative;
-  flex: 1;
+.panel h3,
+.quick h3 {
+  margin: 0;
+  font-size: 17px;
 }
-
+.period,
+.panel header button {
+  padding: 7px 11px;
+  border: 1px solid #e1e4f4;
+  border-radius: 8px;
+  background: #fff;
+  color: #51618c;
+  font-size: 11px;
+}
+.link {
+  border: 0 !important;
+  color: #4f6ef5 !important;
+  cursor: pointer;
+}
+.legend {
+  margin: 20px 0;
+  color: #6654f4;
+  font-size: 11px;
+}
+.trend svg {
+  width: 100%;
+  height: 205px;
+}
 .grid-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  border-top: 1px dashed #e9ecf1;
+  fill: none;
+  stroke: #eff1fb;
+  stroke-dasharray: 4 4;
 }
-
-.line-1 {
-  top: 0;
+.trend-line {
+  fill: none;
+  stroke: #7c56ed;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-
-.line-2 {
-  top: 25%;
+.trend-point {
+  fill: #fff;
+  stroke: #7c56ed;
+  stroke-width: 3;
 }
-
-.line-3 {
-  top: 50%;
+.trend-count,
+.trend-label {
+  fill: #7480a3;
+  font-size: 10px;
+  text-anchor: middle;
 }
-
-.line-4 {
-  top: 75%;
+.trend-count {
+  fill: #5a48d8;
+  font-weight: 700;
 }
-
-.fake-chart {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 25px;
-  top: 10px;
+.panel-state {
+  min-height: 205px;
+  display: grid;
+  place-items: center;
+  color: #8a95b2;
+  font-size: 12px;
+}
+.error-state {
+  color: #db4562;
+}
+.row {
+  width: 100%;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-around;
+  align-items: center;
   gap: 12px;
+  padding: 13px 0;
+  border: 0;
+  border-bottom: 1px solid #f0f1f8;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
-
-.bar {
-  width: 30px;
-  max-width: 12%;
-  border-radius: 7px 7px 2px 2px;
-  background: #dcd9ff;
-  transition: height 0.3s ease;
+.row i {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #eee9ff;
+  color: #704ff0;
+  font-style: normal;
 }
-
-.active-bar {
-  background: #6b63ed;
-  box-shadow: 0 7px 15px rgba(107, 99, 237, 0.22);
-}
-
-.chart-x {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  justify-content: space-around;
-  color: #a3aab7;
-  font-size: 8px;
-}
-
-/* AI */
-
-.ai-panel {
+.row span {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
-
-.ai-badge {
-  padding: 5px 8px;
-  border-radius: 7px;
-  color: #665eed;
-  background: #eeecff;
+.row b {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row small {
+  color: #8994b0;
   font-size: 10px;
+}
+.row label {
+  padding: 5px 9px;
+  border-radius: 11px;
+  background: #eaf8f1;
+  color: #21aa76;
+  font-size: 10px;
+}
+.row label.pending {
+  background: #fff6e3;
+  color: #d78315;
+}
+.row label.failed {
+  background: #fff0f0;
+  color: #ef5d64;
+}
+.empty {
+  padding: 60px 0;
+  color: #8a95b2;
+  text-align: center;
+}
+.quality-empty {
+  height: 220px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.quality-placeholder {
+  width: 132px;
+  height: 132px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 14px solid #eef0f8;
+  border-radius: 50%;
+  color: #9aa3bf;
+  font-size: 24px;
   font-weight: 700;
 }
-
-.ai-content {
-  margin-top: 24px;
-  padding: 17px;
-  border-radius: 12px;
-  background: #f8f7ff;
-}
-
-.ai-title {
+.quality-empty strong {
+  color: #394873;
   font-size: 13px;
-  font-weight: 700;
 }
-
-.ai-star {
-  margin-right: 5px;
-  color: #6b63ed;
+.quality-empty p {
+  margin: 10px 0 0;
+  color: #8a95b2;
+  font-size: 11px;
+  line-height: 1.7;
 }
-
-.ai-content > p {
-  margin: 10px 0 16px;
-  color: #737e91;
+.bottom {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+.dia {
+  position: relative;
+  min-height: 160px;
+  overflow: hidden;
+  padding: 24px 28px;
+  border: 1px solid #e5e2ff;
+  border-radius: 15px;
+  background: linear-gradient(100deg, #f4f1ff, #f8f9ff);
+}
+.dia img {
+  position: absolute;
+  right: -4px;
+  bottom: -70px;
+  width: 150px;
+  opacity: 0.8;
+}
+.dia div {
+  position: relative;
+  width: 70%;
+}
+.dia h3 {
+  margin: 0 0 9px;
+  font-size: 18px;
+}
+.dia p {
+  min-height: 40px;
+  color: #60709a;
   font-size: 11px;
   line-height: 1.8;
 }
-
-.insight-list {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-.insight-item {
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  font-size: 10px;
-  color: #586276;
-}
-
-.insight-number {
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  background: white;
-  color: #6b63ed;
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.text-button {
-  margin-top: auto;
-  padding-top: 17px;
-  border: none;
-  background: transparent;
-  color: #625bea;
+.dia button {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: #7256ee;
+  color: #fff;
   font-size: 11px;
   cursor: pointer;
-  text-align: left;
 }
-
-.text-button:hover {
-  color: #4f46c8;
+.quick {
+  padding: 13px 20px;
+  border: 1px solid #e8eafe;
+  border-radius: 15px;
+  background: #fff;
 }
-
-/* Dataset */
-
-.datasets-panel {
-  margin-top: 20px;
-}
-
-.dataset-table {
-  margin-top: 18px;
-}
-
-.table-header,
-.table-row {
+.quick > div {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1.2fr;
-  align-items: center;
-  padding: 13px 10px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 13px;
+  margin-top: 15px;
 }
-
-.table-header {
-  color: #9ba3b1;
-  font-size: 10px;
-  border-bottom: 1px solid #edf0f4;
-}
-
-.table-row {
-  color: #697387;
-  font-size: 11px;
-  border-bottom: 1px solid #f1f3f6;
-}
-
-.table-row:last-child {
-  border-bottom: none;
-}
-
-.dataset-name {
+.quick button {
   display: flex;
   align-items: center;
-  gap: 9px;
-  color: #354055;
-  font-weight: 600;
+  gap: 12px;
+  padding: 14px 13px;
+  border: 1px solid #edf0fa;
+  border-radius: 11px;
+  background: #fff;
+  color: inherit;
+  font-size: 20px;
+  text-align: left;
+  cursor: pointer;
 }
-
-.file-icon {
-  padding: 5px 6px;
-  border-radius: 5px;
-  background: #eaf8f1;
-  color: #2caf78;
-  font-size: 8px;
-  font-weight: 800;
-}
-
-.status-tag {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #2caf78;
-  font-weight: 600;
-}
-
-.small-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #35c98b;
-  box-shadow: 0 0 8px rgba(53, 201, 139, 0.6);
-}
-
-.empty-state {
-  padding: 35px 20px;
-  text-align: center;
-  color: #9ba3b1;
+.quick b {
   font-size: 12px;
 }
-
-/* Footer */
-
-.footer {
-  padding: 24px 0 8px;
-  text-align: center;
-  color: #a0a8b6;
-  font-size: 9px;
+.quick small {
+  display: block;
+  margin-top: 4px;
+  color: #8b96b4;
+  font-size: 10px;
+  font-weight: 400;
 }
-
-/* Responsive */
-
-@media (max-width: 1100px) {
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+@media (max-width: 1200px) {
+  .dashboard-page {
+    padding: 20px;
   }
-
-  .dashboard-grid {
-    grid-template-columns: 1fr;
+  .banner {
+    height: 300px;
   }
-}
-
-@media (max-width: 800px) {
-  .topbar {
-    gap: 20px;
+  .banner .hero-pointing {
+    top: 0;
+    right: -10px;
+    width: 470px;
   }
-
-  .user-info {
-    display: none;
+  .speech {
+    right: 390px;
   }
-
-  .stats-grid {
+  .grid {
     grid-template-columns: 1fr 1fr;
   }
-
-  .table-header,
-  .table-row {
-    grid-template-columns: 2fr 1fr 1fr;
+  .quality {
+    grid-column: span 2;
   }
-
-  .table-header span:last-child,
-  .table-row span:last-child {
-    display: none;
-  }
-}
-
-@media (max-width: 550px) {
-  .stats-grid {
+  .bottom {
     grid-template-columns: 1fr;
   }
-
-  .upload-card {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 15px;
+}
+@media (max-width: 700px) {
+  .banner {
+    height: 300px;
+    padding: 25px 20px;
+    overflow: hidden;
   }
-
-  .topbar-actions {
+  .banner h2 {
+    max-width: 62%;
+    font-size: 24px;
+  }
+  .banner p {
+    max-width: 55%;
+    font-size: 14px;
+  }
+  .pills {
     display: none;
+  }
+  .banner .hero-pointing {
+    top: 6px;
+    right: -16px;
+    width: 360px;
+  }
+  .speech {
+    top: 145px;
+    right: auto;
+    left: 20px;
+    max-width: 180px;
+    padding: 10px;
+    font-size: 11px;
+  }
+  .stats,
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .metric {
+    border-right: 0;
+    border-bottom: 1px solid #edf0fa;
+  }
+  .quality {
+    grid-column: auto;
+  }
+  .quality-empty {
+    gap: 16px;
+  }
+  .quality-placeholder {
+    width: 100px;
+    height: 100px;
+  }
+  .quick > div {
+    grid-template-columns: 1fr 1fr;
   }
 }
 </style>

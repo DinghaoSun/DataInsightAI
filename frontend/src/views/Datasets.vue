@@ -1,7 +1,11 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../services/api'
+import diaNormal from '../assets/dia/dia-normal.webp'
+import diaThinking from '../assets/dia/dia-thinking.webp'
+import diaAnalyzing from '../assets/dia/dia-analyzing.webp'
+import diaIssue from '../assets/dia/dia-issue.webp'
 
 const router = useRouter()
 
@@ -13,6 +17,52 @@ const showUploadModal = ref(false)
 const selectedFile = ref(null)
 const uploading = ref(false)
 const uploadError = ref('')
+
+
+const diaState = computed(() => {
+  if (uploadError.value || error.value) {
+    return 'issue'
+  }
+
+  if (uploading.value || datasets.value.some((dataset) => dataset.status === 'pending')) {
+    return 'analyzing'
+  }
+
+  if (loading.value) {
+    return 'thinking'
+  }
+
+  if (datasets.value[0]?.status === 'failed') {
+    return 'issue'
+  }
+
+  return 'normal'
+})
+
+const diaStateMap = {
+  normal: {
+    image: diaNormal,
+    title: '数据都在这里，需要我帮你看看吗？',
+    message: '从最近的一份开始，或者上传新的 CSV。',
+  },
+  thinking: {
+    image: diaThinking,
+    title: 'DIA 正在整理',
+    message: '我先看一下你已有的数据集。',
+  },
+  analyzing: {
+    image: diaAnalyzing,
+    title: 'DIA 正在分析',
+    message: '数据收到，我开始检查啦。',
+  },
+  issue: {
+    image: diaIssue,
+    title: '有一份数据需要再看一眼。',
+    message: '上传或分析没有顺利完成，可以检查后重试。',
+  },
+}
+
+const currentDia = computed(() => diaStateMap[diaState.value])
 
 const fetchDatasets = async () => {
   try {
@@ -179,6 +229,15 @@ onMounted(fetchDatasets)
       </button>
     </div>
 
+    <section class="dia-workspace" :class="`dia-workspace-${diaState}`" aria-live="polite">
+      <div class="dia-workspace-copy">
+        <span class="dia-eyebrow">DIA · 数据工作空间</span>
+        <strong>{{ currentDia.title }}</strong>
+        <p>{{ currentDia.message }}</p>
+      </div>
+      <img class="dia-workspace-image" :src="currentDia.image" :alt="`DIA ${diaState}`" />
+    </section>
+
     <div v-if="loading" class="state-card">
       正在加载数据集...
     </div>
@@ -276,6 +335,14 @@ onMounted(fetchDatasets)
         </div>
 
         <div class="upload-area">
+          <div v-if="uploading" class="upload-dia-feedback">
+            <img :src="diaAnalyzing" alt="DIA 正在分析" />
+            <span>数据收到，我开始检查啦。</span>
+          </div>
+          <div v-else-if="selectedFile" class="upload-dia-feedback">
+            <img :src="diaThinking" alt="DIA 正在思考" />
+            <span>让我先看看这份数据……</span>
+          </div>
           <div class="upload-icon">
             CSV
           </div>
@@ -378,6 +445,55 @@ h1 {
   margin: 7px 0 0;
   color: #8b95a7;
   font-size: 13px;
+}
+
+.dia-workspace {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 176px;
+  margin: -6px 0 20px;
+  padding: 22px 220px 20px 22px;
+  overflow: hidden;
+  border: 1px solid #e2e8f5;
+  border-radius: 16px;
+  background: linear-gradient(110deg, #ffffff 0%, #f5f7ff 70%, #eef0ff 100%);
+}
+
+.dia-workspace-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.dia-eyebrow {
+  color: #756cf6;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.dia-workspace-copy strong {
+  color: #273b75;
+  font-size: 15px;
+}
+
+.dia-workspace-copy p {
+  margin: 0;
+  color: #7d8ca6;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.dia-workspace-image {
+  position: absolute;
+  right: 24px;
+  bottom: -8px;
+  width: 150px;
+  height: 160px;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 8px 14px rgba(67, 73, 145, 0.08));
 }
 
 .primary-button {
@@ -633,6 +749,22 @@ h1 {
   background: #fafbfe;
 }
 
+.upload-dia-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: -8px auto 16px;
+  color: #625bea;
+  font-size: 11px;
+}
+
+.upload-dia-feedback img {
+  width: 54px;
+  height: 64px;
+  object-fit: contain;
+}
+
 .upload-icon {
   width: 52px;
   height: 52px;
@@ -773,5 +905,18 @@ h1 {
 .close-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .dia-workspace {
+    min-height: 142px;
+    padding-right: 145px;
+  }
+
+  .dia-workspace-image {
+    right: 8px;
+    width: 118px;
+    height: 128px;
+  }
 }
 </style>

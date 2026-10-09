@@ -23,6 +23,7 @@ body,
   margin: 0;
   padding: 0;
   width: 100%;
+  height: 100%;
   min-height: 100%;
 }
 
@@ -38,6 +39,8 @@ body {
 
 .app-layout {
   width: 100%;
+  max-width: none;
+  min-width: 0;
   min-height: 100vh;
   display: flex;
   background: #f7f7fb;
@@ -45,7 +48,10 @@ body {
 
 .main-content {
   flex: 1;
+  flex-basis: 0;
+  width: auto;
   min-width: 0;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 </style>

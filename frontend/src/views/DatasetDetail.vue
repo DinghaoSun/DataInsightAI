@@ -48,6 +48,8 @@
 
     <div v-if="loading" class="state-card">
 
+      <img class="dia-state-figure" :src="diaThinking" alt="DIA 正在整理数据" />
+
       <div class="state-icon loading">⟳</div>
 
       <div>
@@ -63,6 +65,8 @@
     <!-- 错误 -->
 
     <div v-else-if="error" class="state-card error-state">
+
+      <img class="dia-state-figure" :src="diaIssue" alt="DIA 发现请求错误" />
 
       <div class="state-icon">!</div>
 
@@ -128,6 +132,15 @@
 
         </div>
 
+      </section>
+
+      <section class="dia-detail-stage" :class="`dia-detail-${diaState}`" aria-live="polite">
+        <div class="dia-detail-copy">
+          <span>DIA · 分析这份数据</span>
+          <h2>{{ diaMessage }}</h2>
+          <p v-if="diaDetail">{{ diaDetail }}</p>
+        </div>
+        <img :src="diaImage" :alt="`DIA ${diaState}`" />
       </section>
 
       <!-- 核心数据 -->
@@ -1259,6 +1272,11 @@ import { useRoute, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 
 import api from '../services/api'
+import diaNormal from '../assets/dia/dia-normal-half.png'
+import diaThinking from '../assets/dia/dia-thinking.webp'
+import diaAnalyzing from '../assets/dia/dia-analyzing.webp'
+import diaIssue from '../assets/dia/dia-issue.webp'
+import diaSuccess from '../assets/dia/dia-success.webp'
 
 const route = useRoute()
 
@@ -1578,6 +1596,41 @@ const recommendations = computed(() => {
 
   )
 
+})
+
+const diaState = computed(() => {
+  if (dataset.value?.status === 'failed' || analysisError.value) return 'issue'
+  if (dataset.value?.status === 'pending') return 'analyzing'
+  if (dataset.value?.status === 'completed' && analysis.value) {
+    const hasMissing = Object.values(missingValues.value).some((count) => Number(count) > 0)
+    return warnings.value.length || hasMissing ? 'issue' : 'success'
+  }
+  return 'normal'
+})
+
+const diaImage = computed(() => ({
+  normal: diaNormal,
+  analyzing: diaAnalyzing,
+  issue: diaIssue,
+  success: diaSuccess,
+})[diaState.value])
+
+const diaMessage = computed(() => {
+  if (analysisError.value) return '分析记录暂时无法读取，我们稍后再试。'
+  if (diaState.value === 'analyzing') return '这份数据还在分析中，我会继续留意。'
+  if (dataset.value?.status === 'failed') return '这次分析没有顺利完成，我们再试一次。'
+  if (diaState.value === 'issue') return '分析已完成，有些数据值得再看一眼。'
+  if (diaState.value === 'success') return '分析完成，我已经把结果整理好了。'
+  return '这份数据在这里，我们一起看看。'
+})
+
+const diaDetail = computed(() => {
+  if (diaState.value !== 'issue' || !analysis.value) return ''
+  const missingCount = Object.values(missingValues.value).filter((count) => Number(count) > 0).length
+  const parts = []
+  if (warnings.value.length) parts.push(`${warnings.value.length} 条分析提醒`)
+  if (missingCount) parts.push(`${missingCount} 个字段存在缺失值`)
+  return parts.length ? `当前结果包含 ${parts.join('，')}。详细内容在下方。` : ''
 })
 
 const columns = computed(() => {
@@ -2382,6 +2435,61 @@ onBeforeUnmount(() => {
 
   gap: 18px;
 
+}
+
+.dia-detail-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 200px;
+  padding: 30px 245px 30px 30px;
+  overflow: hidden;
+  border-bottom: 1px solid #dfe7f5;
+  background: linear-gradient(105deg, #ffffff 0%, #f5f8ff 72%, #eef1ff 100%);
+}
+
+.dia-detail-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.dia-detail-copy span {
+  color: #756cf6;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dia-detail-copy h2 {
+  max-width: 520px;
+  margin: 10px 0 0;
+  color: #263865;
+  font-size: 19px;
+  line-height: 1.5;
+}
+
+.dia-detail-copy p {
+  margin: 9px 0 0;
+  color: #7383a0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.dia-detail-stage > img {
+  position: absolute;
+  right: 30px;
+  bottom: -18px;
+  width: 186px;
+  height: 218px;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 8px 15px rgba(67, 73, 145, 0.08));
+}
+
+.dia-state-figure {
+  width: 88px;
+  height: 100px;
+  flex: 0 0 auto;
+  object-fit: contain;
 }
 
 /* =========================
@@ -3971,6 +4079,20 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 700px) {
+  .dia-detail-stage {
+    min-height: 174px;
+    padding: 24px 145px 24px 16px;
+  }
+
+  .dia-detail-stage > img {
+    right: 0;
+    width: 136px;
+    height: 178px;
+  }
+
+  .dia-detail-copy h2 {
+    font-size: 15px;
+  }
 
   .detail-page {
 
