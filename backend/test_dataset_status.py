@@ -83,7 +83,7 @@ def run_status_flow_test() -> None:
         assert pending_detail.json()["status"] == "pending"
 
         with patch(
-            "app.main.generate_ai_insight",
+            "app.services.dataset_service.generate_ai_insight",
             return_value="测试 AI 洞察",
         ):
             success_response = client.post(
@@ -115,7 +115,7 @@ def run_status_flow_test() -> None:
         assert success_analysis.status_code == 200
 
         with patch(
-            "app.main.generate_ai_insight",
+            "app.services.dataset_service.generate_ai_insight",
             side_effect=RuntimeError("模拟 DeepSeek 服务失败"),
         ):
             failure_response = client.post(
