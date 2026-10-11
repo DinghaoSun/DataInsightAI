@@ -54,6 +54,15 @@ const qualityValue = computed(() => {
   return `${formatNumber(qualityScore.value)}%`;
 });
 
+const qualityChartState = computed(() => {
+  if (loading.value) return "loading";
+  if (qualityError.value || analysisCountError.value) return "error";
+  if (analysisCount.value === 0) return "empty";
+  if (analysisCount.value === null || qualityScore.value === null ||
+      qualityScore.value < 0 || qualityScore.value > 100) return "unavailable";
+  return "ready";
+});
+
 const stats = computed(() => [
   {
     title: "数据集总数",
@@ -175,7 +184,9 @@ const loadDashboard = async () => {
 
   if (countResult.status === "fulfilled") {
     const count = countResult.value.data?.count;
-    analysisCount.value = Number.isFinite(Number(count)) ? Number(count) : null;
+    analysisCount.value = (typeof count === "number" ||
+      (typeof count === "string" && count.trim() !== "")) &&
+      Number.isInteger(Number(count)) && Number(count) >= 0 ? Number(count) : null;
   } else {
     analysisCount.value = null;
     analysisCountError.value = "分析次数加载失败";
@@ -183,7 +194,9 @@ const loadDashboard = async () => {
 
   if (qualityResult.status === "fulfilled") {
     const score = qualityResult.value.data?.quality_score;
-    qualityScore.value = Number.isFinite(Number(score)) ? Number(score) : null;
+    qualityScore.value = (typeof score === "number" ||
+      (typeof score === "string" && score.trim() !== "")) &&
+      Number.isFinite(Number(score)) ? Number(score) : null;
   } else {
     qualityScore.value = null;
     qualityError.value = "数据质量加载失败";
@@ -314,14 +327,26 @@ onMounted(loadDashboard);
       </article>
 
       <article class="panel quality">
-        <h3>数据质量分布</h3>
-        <div class="quality-empty">
-          <div class="quality-placeholder">--</div>
-          <div>
-            <strong>暂无分布数据</strong>
-            <p>当前仅提供平均数据质量，尚无各评分区间的分布统计。</p>
+        <h3>平均数据质量</h3>
+        <div v-if="qualityChartState === 'ready'" class="quality-summary">
+          <div class="quality-ring" role="img"
+            :aria-label="`平均数据质量 ${qualityScore} 分，满分 100 分`"
+            :style="{ '--quality-angle': `${qualityScore * 3.6}deg` }">
+            <div class="quality-ring-center">
+              <strong>{{ formatNumber(qualityScore) }}</strong>
+              <span>平均分 / 100</span>
+            </div>
           </div>
+          <strong class="quality-caption">所有含质量评分的分析结果平均值</strong>
+          <p class="quality-note">紫色弧线表示平均分在满分 100 中的位置，不代表数据集分类比例。</p>
         </div>
+        <div v-else class="panel-state" :class="{ 'error-state': qualityChartState === 'error' }" role="status">
+          {{ qualityChartState === 'loading' ? '正在加载数据质量...'
+            : qualityChartState === 'error' ? '数据质量加载失败，请重试'
+            : qualityChartState === 'empty' ? '暂无分析结果，上传 CSV 后可查看平均质量'
+            : '暂无有效质量统计' }}
+        </div>
+        <p class="quality-note">当前接口不提供各评分区间的分布统计。</p>
       </article>
     </section>
 
@@ -667,31 +692,43 @@ onMounted(loadDashboard);
   color: #8a95b2;
   text-align: center;
 }
-.quality-empty {
-  height: 220px;
+.quality-summary {
+  min-height: 220px;
   display: flex;
+  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  gap: 24px;
+  gap: 12px;
+  text-align: center;
 }
-.quality-placeholder {
+.quality-ring {
   width: 132px;
   height: 132px;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border: 14px solid #eef0f8;
   border-radius: 50%;
-  color: #9aa3bf;
-  font-size: 24px;
-  font-weight: 700;
+  background: conic-gradient(#7256ee var(--quality-angle), #eef0f8 0);
 }
-.quality-empty strong {
+.quality-ring-center {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+.quality-ring-center strong { font-size: 28px; }
+.quality-ring-center span { color: #53618d; font-size: 11px; }
+.quality-caption {
   color: #394873;
   font-size: 13px;
 }
-.quality-empty p {
+.quality-note {
   margin: 10px 0 0;
-  color: #8a95b2;
+  color: #53618d;
   font-size: 11px;
   line-height: 1.7;
 }
@@ -840,13 +877,6 @@ onMounted(loadDashboard);
   }
   .quality {
     grid-column: auto;
-  }
-  .quality-empty {
-    gap: 16px;
-  }
-  .quality-placeholder {
-    width: 100px;
-    height: 100px;
   }
   .quick > div {
     grid-template-columns: 1fr 1fr;

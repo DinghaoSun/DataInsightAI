@@ -7,16 +7,16 @@
 
     <!-- Navigation -->
     <nav class="nav-menu">
-      <RouterLink to="/" class="nav-item">
+      <RouterLink to="/" class="nav-item" :class="{ 'is-active': route.name === 'Dashboard' }">
         <span class="nav-icon">⌂</span><span>总览</span>
       </RouterLink>
 
-      <RouterLink to="/datasets" class="nav-item">
+      <RouterLink to="/datasets" class="nav-item" :class="{ 'is-active': isDatasetRoute }" :aria-current="isDatasetRoute ? 'page' : undefined">
         <span class="nav-icon">▣</span><span>数据集</span>
       </RouterLink>
-      <RouterLink to="/datasets" class="nav-item"><span class="nav-icon">⌁</span><span>分析</span></RouterLink>
-      <RouterLink to="/datasets" class="nav-item"><span class="nav-icon">◉</span><span>洞察</span></RouterLink>
-      <RouterLink to="/datasets" class="nav-item"><span class="nav-icon">⚙</span><span>设置</span></RouterLink>
+      <button type="button" class="nav-item is-disabled" disabled title="即将推出" aria-label="分析（即将推出）"><span class="nav-icon">⌁</span><span>分析</span></button>
+      <button type="button" class="nav-item is-disabled" disabled title="即将推出" aria-label="洞察（即将推出）"><span class="nav-icon">◉</span><span>洞察</span></button>
+      <button type="button" class="nav-item is-disabled" disabled title="即将推出" aria-label="设置（即将推出）"><span class="nav-icon">⚙</span><span>设置</span></button>
     </nav>
 
     <!-- Bottom -->
@@ -25,6 +25,14 @@
     </div>
   </aside>
 </template>
+
+<script setup>
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+const isDatasetRoute = computed(() => ['Datasets', 'DatasetDetail'].includes(route.name))
+</script>
 
 <style scoped>
 .sidebar {
@@ -92,15 +100,25 @@
   box-sizing: border-box;
 }
 
-.nav-item:hover {
+.nav-item:not(.is-disabled):hover {
   background: #f7f3ff;
   color: #7c3aed;
 }
 
-.nav-item.router-link-active {
+.nav-item.is-active {
   background: #f3eaff;
   color: #7c3aed;
   font-weight: 600;
+}
+
+.nav-item.is-disabled {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  color: #a1a8b8;
+  cursor: not-allowed;
 }
 
 .nav-icon {
