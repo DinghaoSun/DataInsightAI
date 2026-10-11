@@ -11,3 +11,6 @@ __pycache__/
 
 # Browser test artifacts
 .playwright-cli/
+frontend/src/assets/dia/dia-avatar.webp
+frontend/src/assets/dia/dia-hero-pointing.png
+frontend/src/assets/dia/dia-normal-half.webp
