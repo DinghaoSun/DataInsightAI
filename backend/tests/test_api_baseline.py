@@ -242,6 +242,17 @@ class APIBaselineTests(unittest.TestCase):
         self.assertEqual(self.client.get(f'/api/data/datasets/{item["id"]}').json(), item)
         self.assertEqual(self.client.get(f'/api/data/datasets/{item["id"]}/analysis').status_code, 404)
 
+    def test_unique_value_counts_survive_json_persistence(self):
+        response = self.upload(content=b"repeated,distinct,empty\nA,1,\nA,2,\nB,3,\n,4,\n")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        expected = {"repeated": 2, "distinct": 4, "empty": 0}
+        self.assertEqual(body["analysis"]["unique_values"], expected)
+        stored = self.client.get(f'/api/data/datasets/{body["dataset_id"]}/analysis')
+        self.assertEqual(stored.status_code, 200)
+        self.assertEqual(stored.json()["analysis"]["unique_values"], expected)
+        self.assertNotIn("unique_counts", stored.json()["analysis"])
+
     def test_analysis_failure_marks_failed_without_ai(self):
         with patch.object(self.service, "analyze_dataframe", side_effect=RuntimeError("offline analysis")):
             response = self.upload()

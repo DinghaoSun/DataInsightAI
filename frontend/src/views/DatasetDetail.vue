@@ -1552,7 +1552,7 @@ const uniqueValues = computed(() => {
 
   return (
 
-    analysis.value?.analysis?.unique_counts || {}
+    analysis.value?.analysis?.unique_values || {}
 
   )
 
@@ -1646,7 +1646,7 @@ const columns = computed(() => {
   const fieldSet = new Set([
     ...Object.keys(analysisData.dtypes || {}),
     ...Object.keys(analysisData.missing_values || {}),
-    ...Object.keys(analysisData.unique_counts || {}),
+    ...Object.keys(analysisData.unique_values || {}),
     ...Object.keys(analysisData.numeric_summary || {}),
   ])
 
@@ -1674,7 +1674,7 @@ const dtypes = computed(() => {
 
   const allFields = new Set([
     ...Object.keys(analysisData.missing_values || {}),
-    ...Object.keys(analysisData.unique_counts || {}),
+    ...Object.keys(analysisData.unique_values || {}),
     ...numericFields,
   ])
 

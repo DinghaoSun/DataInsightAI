@@ -132,9 +132,22 @@ AI 文本全部 mock，不固定真实 AI 文案。
 
 不修复、不擅自改变 API 的已知问题：safe_float 不处理 infinity；
 零列 DataFrame 的 duplicate_rows 未赋值；非法历史 quality_score 导致 500；
-前端 unique_counts 与后端 unique_values 错配；进程中断可能遗留 pending。
+进程中断可能遗留 pending。
 其中非法质量分数的现有 500 已纳入行为测试，其他缺陷未纳入修复验收。
 
 未执行：旧三项测试、真实 MySQL 集成、数据库迁移、真实 DeepSeek、
 生产 .env/连接初始化、浏览器联调、干净环境依赖重装、并发/性能测试、
 refresh 失败后遗留 pending 场景。
+
+## Day 18：唯一值数量字段修复
+
+后端 `unique_values` 实际为每列 `int(series.nunique())`，不是值列表，
+默认排除空值。API 和数据库 JSON 不变；详情页三处读取改用该字段。
+未推断真实历史库中 `unique_counts` 的含义，未迁移或转换历史数据。
+新增统计及内存 SQLite JSON 持久化测试，后端基线现在共 30 项。
+前端额外验证缺失字段显示 `--`，全空列的有效统计值 0 不被隐藏：
+
+```powershell
+# frontend 目录，无新增依赖
+node --test tests/unique-values.test.js
+```

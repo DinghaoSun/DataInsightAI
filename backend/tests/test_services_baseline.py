@@ -109,6 +109,16 @@ class AnalysisBaselineTests(unittest.TestCase):
         result = analyze_dataframe(pd.DataFrame({"value": [1] * 60}))
         self.assertEqual(result["quality_score"], 0)
 
+    def test_unique_counts_exclude_nulls_and_count_distinct_values(self):
+        result = analyze_dataframe(pd.DataFrame({
+            "repeated": ["A", "A", "B", None],
+            "distinct": [1, 2, 3, 4],
+            "empty": [None, None, None, None],
+        }))
+        self.assertEqual(result["unique_values"], {"repeated": 2, "distinct": 4, "empty": 0})
+        self.assertNotIn("unique_counts", result)
+        self.assertEqual(result["missing_values"], {"repeated": 1, "distinct": 0, "empty": 4})
+
     def test_clean_rule_insights(self):
         insight = generate_insights(analyze_dataframe(pd.DataFrame({"value": [1, 2, 3]})))
         self.assertEqual(insight["warnings"], ["当前未发现明显的数据质量问题。"])
