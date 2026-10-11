@@ -177,6 +177,10 @@ class APIBaselineTests(unittest.TestCase):
                 (CSV, "a.txt", "只支持 CSV 文件"), (b"", "a.csv", "上传的 CSV 文件为空"),
                 (b"\xff", "a.csv", "CSV 文件编码不是 UTF-8"),
                 (b"\n", "a.csv", "CSV 文件没有有效数据"),
+                (b" \t\n\n", "a.csv", "CSV 文件没有有效数据"),
+                (b"name,sales\n", "a.csv", "CSV 文件没有有效数据"),
+                (b"name,sales\n\n   \n", "a.csv", "CSV 文件没有有效数据"),
+                (b"name,sales\n,\n,\n", "a.csv", "CSV 文件没有有效数据"),
                 (b'a,b\n"unterminated', "a.csv", "CSV 文件格式错误，无法解析"),
             ]:
                 with self.subTest(path=path, detail=detail):
@@ -186,6 +190,18 @@ class APIBaselineTests(unittest.TestCase):
         self.factory.assert_not_called()
         self.ai.assert_not_called()
         self.assertEqual(self.counts(), (0, 0))
+
+    def test_valid_csv_preserves_empty_rows_and_columns(self):
+        response = self.upload(content=b"name,sales,empty\nA,10,\n,,\n,0,\n")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["status"], "completed")
+        self.assertEqual(body["analysis"]["rows"], 3)
+        self.assertEqual(body["analysis"]["columns"], 3)
+        self.assertEqual(body["analysis"]["missing_values"],
+                         {"name": 2, "sales": 1, "empty": 3})
+        self.ai.assert_called_once()
+        self.assertEqual(self.counts(), (1, 1))
 
     def test_oversize_http_contract(self):
         for path in ["/api/data/analyze", "/api/data/ai-insight"]:

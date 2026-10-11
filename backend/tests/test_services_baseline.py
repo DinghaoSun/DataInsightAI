@@ -51,10 +51,21 @@ class CSVBaselineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.status_code, 413)
         self.assertEqual(caught.exception.detail, "上传的 CSV 文件不能超过 20MB")
 
-    async def test_header_only_current_behavior(self):
-        frame = await self.read(b"name,sales\n")
-        self.assertEqual(frame.shape, (0, 2))
-        self.assertEqual(analyze_dataframe(frame)["quality_score"], 100)
+    async def test_no_effective_rows_are_rejected(self):
+        for content in [b"name,sales\n", b"name,sales\n\n   \n",
+                        b"name,sales\n,\n,\n", b" \t\n\n"]:
+            with self.subTest(content=content):
+                with self.assertRaises(HTTPException) as caught:
+                    await self.read(content)
+                self.assertEqual(caught.exception.status_code, 400)
+                self.assertEqual(caught.exception.detail, "CSV 文件没有有效数据")
+
+    async def test_valid_rows_preserve_missing_data(self):
+        frame = await self.read(b"name,sales,empty\nA,10,\n,,\n,0,\n")
+        self.assertEqual(frame.shape, (3, 3))
+        self.assertEqual(frame["sales"].iloc[2], 0)
+        self.assertTrue(frame.iloc[1].isna().all())
+        self.assertTrue(frame["empty"].isna().all())
 
 
 class AnalysisBaselineTests(unittest.TestCase):

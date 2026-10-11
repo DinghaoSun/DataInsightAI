@@ -49,6 +49,13 @@ async def read_csv_file(file: UploadFile) -> pd.DataFrame:
             StringIO(content.decode("utf-8"))
         )
 
+        # 至少一行包含非空数据；仅校验，不改变用于质量分析的原始行。
+        if df.dropna(how="all").empty:
+            raise HTTPException(
+                status_code=400,
+                detail="CSV 文件没有有效数据",
+            )
+
         return df
 
     except UnicodeDecodeError:
